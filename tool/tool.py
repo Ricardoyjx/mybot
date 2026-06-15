@@ -47,3 +47,7 @@ class Tool(ABC):
     def parameters(self) -> dict[str, Any]:
         """JSON Schema for tool parameters."""
         ...
+
+
+class ToolRegistry:
+    pass

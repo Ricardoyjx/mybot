@@ -1,0 +1,83 @@
+from dataclasses import dataclass
+from typing import Any
+from loop.loop import AgentLoop
+from hook.hook import AgentHook, SDKCaptureHook
+from tool.tool import ToolRegistry
+from bus.queue import OutboundMessage, InboundMessage
+import asyncio
+
+
+@dataclass(slots=True)
+class RunResult:
+    content: str
+    tools_used: list[str]
+    message: list[dict[str, Any]]
+
+
+class Mybot:
+
+    def __init__(self, loop: AgentLoop):
+        self._loop = loop
+
+    async def run(
+        self,
+        message: str,
+        *,
+        session_key: str = "sdk:default",
+        hooks: list[AgentHook] | None = None,
+    ) -> RunResult:
+        """Run the agent once and return the result.
+
+        Args:
+            message: The user message to process.
+            session_key: Session identifier for conversation isolation.
+                Different keys get independent history.
+            hooks: Optional lifecycle hooks for this run.
+        """
+        capture = SDKCaptureHook()
+        prev = self._loop._extra_hooks
+        base_hooks = list(hooks) if hooks is not None else list(prev or [])
+        self._loop._extra_hooks = [capture, *base_hooks]
+        try:
+            response = await self._loop.process_direct(
+                message,
+                session_key=session_key,
+            )
+        finally:
+            self._loop._extra_hooks = prev
+
+        content = (response.content if response else None) or ""
+        return RunResult(
+            content=content,
+            tools_used=capture.tools_used,
+            message=capture.message,
+        )
+
+    async def process_direct(
+        self,
+        content: str,
+        session_key: str = "cli:direct",
+        channel: str = "cli",
+        chat_id: str = "direct",
+        tools: ToolRegistry | None = None,
+    ) -> OutboundMessage | None:
+        """Process a message directly and return the outbound payload."""
+        await self._connect_mcp()
+        msg = InboundMessage(
+            sender_id="user",
+            chat_id=chat_id,
+            content=content,
+        )
+        # Share the dispatch lock so direct calls serialize with bus turns.
+        lock = self._session_locks.setdefault(session_key, asyncio.Lock())
+        try:
+            async with lock:
+                kwargs: dict[str, Any] = {
+                    "session_key": session_key,
+                }
+                if tools is not None:
+                    kwargs["tools"] = tools
+                return await self._process_message(msg, **kwargs)
+        finally:
+            await self._runtime_events().run_status_changed(msg, session_key, "idle")
+            self._runtime_events.clear_turn(session_key)
