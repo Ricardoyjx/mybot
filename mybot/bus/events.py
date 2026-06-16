@@ -1,18 +1,17 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
 
 @dataclass
 class InboundMessage:
-
     channel: str
     sender_id: str
     chat_id: str
     content: str
-    timestamp: datetime
-    metadata: dict[str, any]
-    session_key_override: str | None
+    timestamp: datetime = field(default_factory=datetime.now)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    session_key_override: str | None = None
 
     @property
     def session_key(self) -> str:
@@ -25,6 +24,6 @@ class OutboundMessage:
     chat_id: str
     content: str
     reply_to: str | None = None
-    media: list[str]
-    metadata: dict[str, Any]
-    buttons: list[list[str]]
+    media: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    buttons: list[list[str]] = field(default_factory=list)

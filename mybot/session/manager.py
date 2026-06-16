@@ -44,5 +44,5 @@ class SessionManager:
 
     def get_or_create(self, session_key: str) -> Session:
         if session_key not in self.sessions:
-            self.session[session_key] = Session(session_key=session_key)
-        return self.session[session_key]
+            self.sessions[session_key] = Session(session_key=session_key)
+        return self.sessions[session_key]

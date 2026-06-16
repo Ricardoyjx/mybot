@@ -5,6 +5,9 @@ from mybot.bus.events import InboundMessage, OutboundMessage
 from mybot.agent.tools.registry import ToolRegistry
 from mybot.session.manager import Session, SessionManager
 from mybot.agent.runner import AgentRunner
+from mybot.agent.context import ContextBuilder
+from mybot.agent.memory import MemoryStore
+from mybot.agent.hook import AgentHook
 from mybot.providers.base import LLMProvider
 from typing import Any
 
@@ -18,6 +21,7 @@ class AgentLoop:
         provider: LLMProvider,
         model: str | None = None,
         session_manager: SessionManager | None = None,
+        tool_registry: ToolRegistry | None = None,
         # tools_config: ToolsConfig | None = None,
         unified_session: bool = False,
     ):
@@ -28,13 +32,14 @@ class AgentLoop:
         self.provider = provider
         self.model = model
         self.session = session_manager
+        self.tool_registry = tool_registry or ToolRegistry()
 
     def _effective_session_key(self, msg: InboundMessage) -> str:
         if self._unified_session and not msg.session_key_override:
             return UNIFIED_SESSION_KEY
         return msg.session_key
 
-    async def _run_agent_loop():
+    async def _run_agent_loop(self):
         pass
 
     async def run(self) -> None:
@@ -85,54 +90,48 @@ class AgentLoop:
             content=content,
             channel=channel,
         )
-        # Share the dispatch lock so direct calls serialize with bus turns.
-        # lock = self._session_locks.setdefault(session_key, asyncio.Lock())
-        # try:
-        #     async with lock:
-        #         kwargs: dict[str, Any] = {
-        #             "session_key": session_key,
-        #         }
-        #         if tools is not None:
-        #             kwargs["tools"] = tools
-        #         return await s@elf._process_message(msg, **kwargs)
-        # finally:
-        #     await self._runtime_events().run_status_changed(msg, session_key, "idle")
-        #     self._runtime_events.clear_turn(session_key)
-        return await self._process_message(session_key=self.session)
+        return await self._process_message(msg, session_key=session_key)
 
     async def _process_message(
         self,
         msg: InboundMessage,
         *,
-        session_key=str,
+        session_key: str = "default",
         tools: Any | None = None,
-        on_process: Any,
-        on_stream: Any,
-        on_stream_end: Any,
     ) -> OutboundMessage | None:
         session = self._ensure_session(session_key)
         session.add_user_message(msg.content)
 
-        history = list(session.message)
+        history = list(session.messages)
 
         runner = AgentRunner(
             provider=self.provider,
+            tool_registry=self.tool_registry,
+            context_builder=ContextBuilder(),
+            memory_store=MemoryStore(),
         )
-        result = await runner.run(user_message=msg.content, session_id=session.id)
+        result = await runner.run(
+            user_message=msg.content,
+            session_id=session.session_key,
+            hook=AgentHook(),
+        )
 
-        if not result or not result.content:
+        if not result:
             return None
 
-        session.add_assistant_message(result.content)
+        session.add_assistant_message(result)
 
         return OutboundMessage(
             channel=msg.channel,
             chat_id=msg.chat_id,
-            content=result.content,
-            reply_to=msg.message_id,
+            content=result,
         )
 
+    async def _connect_mcp(self) -> None:
+        """Connect configured MCP servers."""
+        pass
+
     def _ensure_session(self, session_key: str) -> Session:
-        if self._session is not None:
-            return self._session.get_or_create(session_key)
+        if self.session is not None:
+            return self.session.get_or_create(session_key)
         return Session(session_key=session_key)
