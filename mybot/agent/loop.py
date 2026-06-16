@@ -3,6 +3,9 @@ from loguru import logger
 from mybot.bus.queue import MessageBus
 from mybot.bus.events import InboundMessage, OutboundMessage
 from mybot.agent.tools.registry import ToolRegistry
+from mybot.session.manager import Session, SessionManager
+from mybot.agent.runner import AgentRunner
+from mybot.providers.base import LLMProvider
 from typing import Any
 
 UNIFIED_SESSION_KEY = "unified:default"
@@ -12,9 +15,9 @@ class AgentLoop:
     def __init__(
         self,
         bus: MessageBus,
-        providers: str,
+        provider: LLMProvider,
         model: str | None = None,
-        # session_manager: SessionManager | None = None,
+        session_manager: SessionManager | None = None,
         # tools_config: ToolsConfig | None = None,
         unified_session: bool = False,
     ):
@@ -22,7 +25,7 @@ class AgentLoop:
         self.bus = bus
         self._active_tasks: dict[str, list[asyncio.Task]] = {}  # session_key -> tasks
         self._unified_session = unified_session
-        self.providers = providers
+        self.provider = provider
         self.model = model
 
     def _effective_session_key(self, msg: InboundMessage) -> str:
@@ -79,17 +82,51 @@ class AgentLoop:
             sender_id="user",
             chat_id=chat_id,
             content=content,
+            channel=channel,
         )
         # Share the dispatch lock so direct calls serialize with bus turns.
-        lock = self._session_locks.setdefault(session_key, asyncio.Lock())
-        try:
-            async with lock:
-                kwargs: dict[str, Any] = {
-                    "session_key": session_key,
-                }
-                if tools is not None:
-                    kwargs["tools"] = tools
-                return await self._process_message(msg, **kwargs)
-        finally:
-            await self._runtime_events().run_status_changed(msg, session_key, "idle")
-            self._runtime_events.clear_turn(session_key)
+        # lock = self._session_locks.setdefault(session_key, asyncio.Lock())
+        # try:
+        #     async with lock:
+        #         kwargs: dict[str, Any] = {
+        #             "session_key": session_key,
+        #         }
+        #         if tools is not None:
+        #             kwargs["tools"] = tools
+        #         return await self._process_message(msg, **kwargs)
+        # finally:
+        #     await self._runtime_events().run_status_changed(msg, session_key, "idle")
+        #     self._runtime_events.clear_turn(session_key)
+        return await self._process_message()
+
+    async def _process_message(
+        self,
+        msg: InboundMessage,
+        *,
+        session_key=str,
+        tools: Any | None = None,
+        on_process: Any,
+        on_stream: Any,
+        on_stream_end: Any,
+    ) -> OutboundMessage | None:
+        session = self._ensure_session(session_key)
+        session.add_user_message(msg.content)
+
+        history = list(session.message)
+
+        runner = AgentRunner(
+            provider=self.provider,
+        )
+        result = await runner.run(user_message=msg.content, session_id=session.id)
+
+        if not result or not result.content:
+            return None
+
+        session.add_assistant_message(result.content)
+
+        return OutboundMessage(
+            channel=msg.channel,
+            chat_id=msg.chat_id,
+            content=result.content,
+            reply_to=msg.message_id,
+        )
