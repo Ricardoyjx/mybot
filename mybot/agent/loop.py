@@ -10,6 +10,7 @@ from mybot.agent.memory import MemoryStore
 from mybot.agent.hook import AgentHook
 from mybot.providers.base import LLMProvider
 from typing import Any
+from mybot.agent import context as agent_context
 
 UNIFIED_SESSION_KEY = "unified:default"
 
@@ -129,7 +130,7 @@ class AgentLoop:
 
     async def _connect_mcp(self) -> None:
         """Connect configured MCP servers."""
-        pass
+        await agent_context.connect_mcp(self, self.tools)
 
     def _ensure_session(self, session_key: str) -> Session:
         if self.session is not None:
