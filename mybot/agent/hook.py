@@ -1,9 +1,12 @@
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(slots=True)
 class AgentHookContext:
-    pass
+    iteration: int = 0
+    messages: list[dict[str, Any]] = field(default_factory=list)
+    session_id: str = ""
 
 
 @dataclass(slots=True)
@@ -35,27 +38,25 @@ class AgentHook:
     async def before_iteration(self, context: AgentHookContext) -> None:
         pass
 
+    async def _before_iteration(self, context: AgentHookContext) -> None:
+        await self.before_iteration(context)
+
     async def on_stream(self, context: AgentHookContext, delta: str) -> None:
         pass
 
     async def on_stream_end(self, context: AgentHookContext, *, resuming: bool) -> None:
         pass
 
-    async def before_execute_tools(self, context: AgentHookContext) -> None:
+    async def before_execute_tools(self, context: AgentHookContext | None = None) -> None:
         pass
 
     async def emit_reasoning(self, reasoning_content: str | None) -> None:
         pass
 
     async def emit_reasoning_end(self) -> None:
-        """Mark the end of an in-flight reasoning stream.
-
-        Hooks that buffer ``emit_reasoning`` chunks (for in-place UI updates)
-        flush and freeze the rendered group here. One-shot hooks ignore.
-        """
         pass
 
-    async def after_iteration(self, context: AgentHookContext) -> None:
+    async def after_iteration(self, context: AgentHookContext, messages: list | None = None) -> None:
         pass
 
     def finalize_content(

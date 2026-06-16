@@ -130,7 +130,7 @@ class AgentLoop:
 
     async def _connect_mcp(self) -> None:
         """Connect configured MCP servers."""
-        await agent_context.connect_mcp(self, self.tools)
+        # await agent_context.connect_mcp(self, self.tool_registry)  # TODO: MCP 连接暂未实现
 
     def _ensure_session(self, session_key: str) -> Session:
         if self.session is not None:

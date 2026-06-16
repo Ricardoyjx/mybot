@@ -39,6 +39,11 @@ class ToolRegistry:
         name = schema.get("name")
         return name if isinstance(name, str) else ""
 
+    def get_tool_schemas(self) -> list[dict[str, Any]]:
+        """Alias for get_definition, used by AgentRunner."""
+        return self.get_definition()
+
+
     def get_definition(self) -> list[dict[str, Any]]:
         if self._cached_definitions is not None:
             return self._cached_definitions
