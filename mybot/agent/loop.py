@@ -3,6 +3,7 @@ from loguru import logger
 from mybot.bus.queue import MessageBus
 from mybot.bus.events import InboundMessage, OutboundMessage
 from mybot.agent.tools.registry import ToolRegistry
+from typing import Any
 
 UNIFIED_SESSION_KEY = "unified:default"
 
