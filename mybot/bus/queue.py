@@ -1,5 +1,6 @@
 import asyncio
-from bus.events import InboundMessage,OutboundMessage
+from mybot.bus.events import InboundMessage, OutboundMessage
+
 
 class MessageBus:
     """
@@ -8,12 +9,12 @@ class MessageBus:
     Channels push messages to the inbound queue, and the agent processes
     them and pushes responses to the outbound queue.
     """
-    
+
     def __init__(self):
         self.inbound: asyncio.Queue[InboundMessage] = asyncio.Queue()
         self.outbound: asyncio.Queue[OutboundMessage] = asyncio.Queue()
 
-    async def publish_inbound(self,msg: InboundMessage) -> None:
+    async def publish_inbound(self, msg: InboundMessage) -> None:
         await self.inbound.put(msg)
 
     async def consume_inbound(self) -> InboundMessage:
@@ -27,11 +28,10 @@ class MessageBus:
         """Consume the next outbound message (blocks until available)."""
         return await self.outbound.get()
 
-
     @property
-    def inbound_size(self)-> int:
+    def inbound_size(self) -> int:
         return self.inbound.qsize()
-    
+
     @property
     def outbound_size(self) -> int:
         """Number of pending outbound messages."""

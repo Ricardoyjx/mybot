@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from typing import Any
-from loop.loop import AgentLoop
-from hook.hook import AgentHook, SDKCaptureHook
-from tool.tool import ToolRegistry
-from bus.queue import OutboundMessage, InboundMessage
+from mybot.agent.loop import AgentLoop
+from mybot.agent.hook import AgentHook, SDKCaptureHook
+from mybot.agent.tools.registry import ToolRegistry
+from mybot.bus.queue import OutboundMessage, InboundMessage
 import asyncio
+from mybot.agent import context as agent_context
 
 
 @dataclass(slots=True)
@@ -52,6 +53,10 @@ class Mybot:
             tools_used=capture.tools_used,
             message=capture.message,
         )
+
+    async def _connect_mcp(self) -> None:
+        """connect configured MCP servers."""
+        await agent_context.connect_mcp(self, self.tools)
 
     async def process_direct(
         self,
