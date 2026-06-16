@@ -57,32 +57,3 @@ class Mybot:
     async def _connect_mcp(self) -> None:
         """connect configured MCP servers."""
         await agent_context.connect_mcp(self, self.tools)
-
-    async def process_direct(
-        self,
-        content: str,
-        session_key: str = "cli:direct",
-        channel: str = "cli",
-        chat_id: str = "direct",
-        tools: ToolRegistry | None = None,
-    ) -> OutboundMessage | None:
-        """Process a message directly and return the outbound payload."""
-        await self._connect_mcp()
-        msg = InboundMessage(
-            sender_id="user",
-            chat_id=chat_id,
-            content=content,
-        )
-        # Share the dispatch lock so direct calls serialize with bus turns.
-        lock = self._session_locks.setdefault(session_key, asyncio.Lock())
-        try:
-            async with lock:
-                kwargs: dict[str, Any] = {
-                    "session_key": session_key,
-                }
-                if tools is not None:
-                    kwargs["tools"] = tools
-                return await self._process_message(msg, **kwargs)
-        finally:
-            await self._runtime_events().run_status_changed(msg, session_key, "idle")
-            self._runtime_events.clear_turn(session_key)

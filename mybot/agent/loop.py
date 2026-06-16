@@ -1,7 +1,8 @@
 import asyncio
 from loguru import logger
-from bus.queue import MessageBus
-from bus.events import InboundMessage
+from mybot.bus.queue import MessageBus
+from mybot.bus.events import InboundMessage, OutboundMessage
+from mybot.agent.tools.registry import ToolRegistry
 
 UNIFIED_SESSION_KEY = "unified:default"
 
@@ -62,3 +63,32 @@ class AgentLoop:
     def stop(self) -> None:
         self._running = False
         logger.info("Agent loop stopping")
+
+    async def process_direct(
+        self,
+        content: str,
+        session_key: str = "cli:direct",
+        channel: str = "cli",
+        chat_id: str = "direct",
+        tools: ToolRegistry | None = None,
+    ) -> OutboundMessage | None:
+        """Process a message directly and return the outbound payload."""
+        await self._connect_mcp()
+        msg = InboundMessage(
+            sender_id="user",
+            chat_id=chat_id,
+            content=content,
+        )
+        # Share the dispatch lock so direct calls serialize with bus turns.
+        lock = self._session_locks.setdefault(session_key, asyncio.Lock())
+        try:
+            async with lock:
+                kwargs: dict[str, Any] = {
+                    "session_key": session_key,
+                }
+                if tools is not None:
+                    kwargs["tools"] = tools
+                return await self._process_message(msg, **kwargs)
+        finally:
+            await self._runtime_events().run_status_changed(msg, session_key, "idle")
+            self._runtime_events.clear_turn(session_key)
