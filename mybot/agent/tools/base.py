@@ -47,3 +47,9 @@ class Tool(ABC):
     def parameters(self) -> dict[str, Any]:
         """JSON Schema for tool parameters."""
         ...
+
+    def cast_params(self, params: dict[str, Any]) -> dict[str, Any]:
+        schema = self.parameters or {}
+        if schema.get("type", "object") != "object":
+            return params
+        return self._cast_object(params, schema)

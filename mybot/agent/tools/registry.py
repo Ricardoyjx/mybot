@@ -60,6 +60,28 @@ class ToolRegistry:
         self._cached_definitions = builtins + mcp_tools
         return self._cached_definitions
 
+    def prepare_call(
+        self,
+        name: str,
+        params: Any,
+    ) -> tuple[Tool | None, Any, str | None]:
+        tool = self._tools.get(name)
+        params = self._coerce_params(tool, params)
+        if not isinstance(tool, dict):
+            return (
+                tool,
+                params,
+                (
+                    f"Error: Tool '{name}' parameters must be a JSON object, got "
+                    f"{type(params).__name__}. Use named parameters like "
+                    'tool_name(param1="value1", param2="value2") matching the tool schema.'
+                ),
+            )
+        cast_params = tool.cast_params(params)
+        # todo validate params
+
+        return tool, cast_params, None
+
     @classmethod
     def _coerce_argument_value(cls, value: Any) -> Any:
         if value is None:
@@ -94,3 +116,18 @@ class ToolRegistry:
         if isinstance(properties, dict) and "arguments" in properties:
             return params
         return cls._coerce_argument_value(params.get("arguments"))
+
+    async def execute(self, name: str, params: Any) -> Any:
+        hint = "\n\n[Analyze the error above and try a different approach.]"
+        tool, params, error = self.prepare_call(name, params)
+        if error:
+            return error + hint
+
+        try:
+            assert tool is not None
+            result = await tool.execute(**params)
+            if isinstance(result, str) and result.startswith("Error"):
+                return result + hint
+            return result
+        except Exception as e:
+            return f"Error executing {name}:{str(e)}" + hint
