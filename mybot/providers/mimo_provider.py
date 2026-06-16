@@ -18,7 +18,7 @@ from openai import AsyncOpenAI, APIConnectionError, APIStatusError, RateLimitErr
 from mybot.providers.base import LLMProvider, LLMResponse
 
 
-class OpenAIProvider(LLMProvider):
+class MimoProvider(LLMProvider):
 
     def __init__(
         self,
@@ -27,11 +27,11 @@ class OpenAIProvider(LLMProvider):
         model: str | None = None,
         max_retries: int = 3,
     ) -> None:
-        self.model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+        self.model = model or os.getenv("MIMO_MODEL", "mimo-v2.5")
         self._max_retries = max_retries
         self._client = AsyncOpenAI(
-            api_key=api_key or os.getenv("OPENAI_API_KEY"),
-            base_url=base_url or os.getenv("OPENAI_BASE_URL"),
+            api_key=api_key or os.getenv("MIMO_API_KEY"),
+            base_url=base_url or "https://token-plan-cn.xiaomimimo.com/v1",
         )
 
     async def chat_with_retry(
@@ -58,14 +58,22 @@ class OpenAIProvider(LLMProvider):
                 if msg.tool_calls:
                     for tc in msg.tool_calls:
                         tool_calls.append(
-                            type("ToolCall", (), {
-                                "id": tc.id,
-                                "type": "function",
-                                "function": type("Fn", (), {
-                                    "name": tc.function.name,
-                                    "arguments": tc.function.arguments,
-                                })(),
-                            })()
+                            type(
+                                "ToolCall",
+                                (),
+                                {
+                                    "id": tc.id,
+                                    "type": "function",
+                                    "function": type(
+                                        "Fn",
+                                        (),
+                                        {
+                                            "name": tc.function.name,
+                                            "arguments": tc.function.arguments,
+                                        },
+                                    )(),
+                                },
+                            )()
                         )
 
                 return LLMResponse(
@@ -74,16 +82,27 @@ class OpenAIProvider(LLMProvider):
                 )
 
             except RateLimitError as e:
-                logger.warning("速率限制，第 {}/{} 次重试: {}", attempt, self._max_retries, e)
+                logger.warning(
+                    "速率限制，第 {}/{} 次重试: {}", attempt, self._max_retries, e
+                )
                 last_error = e
             except APIConnectionError as e:
-                logger.warning("连接失败，第 {}/{} 次重试: {}", attempt, self._max_retries, e)
+                logger.warning(
+                    "连接失败，第 {}/{} 次重试: {}", attempt, self._max_retries, e
+                )
                 last_error = e
             except APIStatusError as e:
                 if e.status_code >= 500:
-                    logger.warning("服务端错误 {}，第 {}/{} 次重试", e.status_code, attempt, self._max_retries)
+                    logger.warning(
+                        "服务端错误 {}，第 {}/{} 次重试",
+                        e.status_code,
+                        attempt,
+                        self._max_retries,
+                    )
                     last_error = e
                 else:
                     raise
 
-        raise RuntimeError(f"LLM 调用失败（已重试 {self._max_retries} 次）: {last_error}")
+        raise RuntimeError(
+            f"LLM 调用失败（已重试 {self._max_retries} 次）: {last_error}"
+        )

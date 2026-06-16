@@ -19,18 +19,22 @@ from mybot.agent.loop import AgentLoop
 from mybot.bus.queue import MessageBus
 from mybot.session.manager import SessionManager
 
-
 SESSION_KEY = "cli:default"
 
 
 def create_provider():
     """根据环境变量自动选择 provider。"""
-    if os.getenv("OPENAI_API_KEY"):
-        from mybot.providers.openai_provider import OpenAIProvider
-        return OpenAIProvider()
+    if os.getenv("MIMO_API_KEY"):
+        from mybot.providers.mimo_provider import MimoProvider
+
+        return MimoProvider(
+            base_url="https://token-plan-cn.xiaomimimo.com/v1",
+            model="mimo-v2.5-pro",
+        )
     else:
-        logger.warning("未设置 OPENAI_API_KEY，使用 stub provider（无法真正对话）")
+        logger.warning("未设置 MIMO_API_KEY stub provider（无法真正对话）")
         from mybot.providers.stub import StubProvider
+
         return StubProvider()
 
 
