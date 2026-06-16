@@ -1,5 +1,5 @@
-from agent.tools import mcp as mcp_tools
-from agent.tools.registry import ToolRegistry
+from mybot.agent.tools import mcp as mcp_tools
+from mybot.agent.tools.registry import ToolRegistry
 from typing import Any
 
 
