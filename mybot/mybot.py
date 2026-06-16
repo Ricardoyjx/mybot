@@ -24,7 +24,7 @@ class Mybot:
         self,
         message: str,
         *,
-        session_key: str = "sdk:default",
+        session_key: str = "cli:direct",
         hooks: list[AgentHook] | None = None,
     ) -> RunResult:
         """Run the agent once and return the result.

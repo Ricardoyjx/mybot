@@ -8,7 +8,7 @@ class Session:
     session_key: str
     messages: list[dict[str, Any]] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
-    created_at: datetime = field(default_factory=datetime.now)
+    updated_at: datetime = field(default_factory=datetime.now)
 
     def add_user_message(self, text: str, **extra: Any) -> None:
         self.messages.append(
@@ -40,7 +40,7 @@ class Session:
 
 @dataclass
 class SessionManager:
-    session: dict[str, Session] = field(default_factory=dict)
+    sessions: dict[str, Session] = field(default_factory=dict)
 
     def get_or_create(self, session_key: str) -> Session:
         if session_key not in self.sessions:

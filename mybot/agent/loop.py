@@ -27,6 +27,7 @@ class AgentLoop:
         self._unified_session = unified_session
         self.provider = provider
         self.model = model
+        self.session = session_manager
 
     def _effective_session_key(self, msg: InboundMessage) -> str:
         if self._unified_session and not msg.session_key_override:
@@ -97,7 +98,7 @@ class AgentLoop:
         # finally:
         #     await self._runtime_events().run_status_changed(msg, session_key, "idle")
         #     self._runtime_events.clear_turn(session_key)
-        return await self._process_message()
+        return await self._process_message(session_key=self.session)
 
     async def _process_message(
         self,
