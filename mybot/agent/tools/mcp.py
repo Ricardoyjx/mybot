@@ -182,6 +182,90 @@ class MCPResourceWrapper(_MCPWrapperBase):
                 return "\n".join(parts) or "(no output)"
 
 
+class MCPPromptWrapper(_MCPWrapperBase):
+    # 将prompt MCP 包装成bot的tool
+    _plugin_discoverable = False
+
+    def __init__(self, session, server_name: str, prompt_def, prompt_timeout: int = 30):
+        self._set_mcp_connection(session, server_name)
+        self._prompt_name = prompt_def.name
+        self._name = f"mcp_{server_name}_prompt_{prompt_def.name}"
+        desc = prompt_def.description or prompt_def.name
+        self._prompt_timeout = prompt_timeout
+
+        properties: dict[str, Any] = {}
+        required: list[str] = []
+        for arg in prompt_def.arguments or []:
+            prop: dict[str, Any] = {"type": "string"}
+            if getattr(arg, "description", None):
+                prop["description"] = arg.description
+            properties[arg.name] = prop
+            if arg.required:
+                required.append(arg.name)
+        self._parameters: dict[str, Any] = {
+            "type": "object",
+            "properties": properties,
+            "required": required,
+        }
+
+        @property
+        def name(self) -> str:
+            return self._name
+
+        @property
+        def description(self) -> str:
+            return self._description
+
+        @property
+        def parameters(self) -> dict[str, Any]:
+            return self._parameters
+
+        @property
+        def read_only(self) -> bool:
+            return True
+
+    async def execute(self, **kwargs: Any) -> str:
+        from mcp import types
+
+        retried_transient = False
+        refreshed_session = False
+
+        while True:
+            try:
+                result = await asyncio.wait_for(
+                    self._session.get_prompt(
+                        self._prompt_name,
+                        arguments=kwargs,
+                        timeout=self._prompt_timeout,
+                    )
+                )
+                pass
+            except asyncio.TimeoutError:
+                logger.warning(
+                    "MCP prompt '{}' timed out after {}s",
+                    self._name,
+                    self._prompt_timeout,
+                )
+                return f"(MCP prompt call timed out after {self._prompt_timeout}s)"
+            else:
+                parts: list[str] = []
+                for message in result.messages:
+                    content = message.content
+                    if isinstance(content, types.TextContent):
+                        parts.append(content.text)
+                    elif isinstance(content, list):
+                        for block in content:
+                            if isinstance(block, types.TextContent):
+                                parts.append(block.text)
+                            else:
+                                parts.append(str(block))
+                    else:
+                        parts.append(str(content))
+                return "\n".join(parts) or "(no output)"
+
+            return "(MCP prompt call failed)"
+
+
 async def connect_missing_servers(state: Any, registry: ToolRegistry) -> None:
     """Connect configured MCP servers that are not currently live."""
     missing_servers = {
@@ -264,12 +348,30 @@ async def connect_mcp_servers(
 
             tools = await session.list_tools()
             enabled_tools = set(cfg.enable_tools)
+            matched_enabled_tools: set[str] = set()
+
+            for tool_def in tools.tools:
+                wrapped_name = f"mcp_{name}_{tool_def.name}"
+
+                wrapper = MCPToolWrapper(
+                    session, name, tool_def, tool_timeout=cfg.tool_timeout
+                )
+                registry.register(wrapper)  # todo impl register
+                logger.debug(
+                    "MCP: registered tool '{}' from server '{}'", wrapper.name, name
+                )
+                registered_count += 1
+                if enabled_tools:
+                    if tool_def.name in enabled_tools:
+                        matched_enabled_tools.add(tool_def.name)
+                    if wrapped_name in enabled_tools:
+                        matched_enabled_tools.add(wrapped_name)
 
             # get resources
             try:
                 resources_result = await session.list_resources()
                 for resource in resources_result.resources:
-                    wrapper = MCPResourceWrapper(  # todo impl
+                    wrapper = MCPResourceWrapper(
                         session, name, resource, resource_timeout=cfg.tool_timeout
                     )
                     registry.register(wrapper)
@@ -288,10 +390,10 @@ async def connect_mcp_servers(
             try:
                 prompts_result = await session.list_prompts()
                 for prompt in prompts_result.prompts:
-                    wrapper = MCPPromptWrapper(  # todo impl
+                    wrapper = MCPPromptWrapper(
                         session, name, prompt, prompt_timeout=cfg.tool_timeout
                     )
-                    registry.register(rwapper)
+                    registry.register(wrapper)
                     registered_count += 1
                     logger.debug(
                         "MCP: registered prompt '{}' from server '{}'",
@@ -332,3 +434,15 @@ async def connect_mcp_servers(
             with suppress(Exception):
                 await server_stack.aclose()
             return name, None
+
+    server_stacks: dict[str, AsyncExitStack] = {}
+
+    for name, cfg in mcp_server.items():
+        try:
+            result = await connect_single_server(name, cfg)
+        except Exception as e:
+            pass
+
+        if result is not None and result[1] is not None:
+            server_stacks[result[0]] = result[1]
+    return server_stacks
