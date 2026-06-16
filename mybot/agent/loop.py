@@ -93,7 +93,7 @@ class AgentLoop:
         #         }
         #         if tools is not None:
         #             kwargs["tools"] = tools
-        #         return await self._process_message(msg, **kwargs)
+        #         return await s@elf._process_message(msg, **kwargs)
         # finally:
         #     await self._runtime_events().run_status_changed(msg, session_key, "idle")
         #     self._runtime_events.clear_turn(session_key)
@@ -130,3 +130,8 @@ class AgentLoop:
             content=result.content,
             reply_to=msg.message_id,
         )
+
+    def _ensure_session(self, session_key: str) -> Session:
+        if self._session is not None:
+            return self._session.get_or_create(session_key)
+        return Session(session_key=session_key)
