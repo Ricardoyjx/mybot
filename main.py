@@ -2,34 +2,45 @@
 nanobot CLI 入口
 
 启动交互式命令行，通过 AgentLoop 处理用户消息。
-当前使用 stub provider，接入真实 LLM 后即可正常对话。
+
+配置方式（环境变量）：
+    OPENAI_API_KEY   - OpenAI API 密钥（必须）
+    OPENAI_BASE_URL  - 自定义接口地址（可选，兼容 Azure/本地代理等）
+    OPENAI_MODEL     - 模型名称（可选，默认 gpt-4o-mini）
 """
 
 import asyncio
+import os
 import sys
 
 from loguru import logger
 
 from mybot.agent.loop import AgentLoop
 from mybot.bus.queue import MessageBus
-from mybot.providers.stub import StubProvider
 from mybot.session.manager import SessionManager
 
 
 SESSION_KEY = "cli:default"
 
 
+def create_provider():
+    """根据环境变量自动选择 provider。"""
+    if os.getenv("OPENAI_API_KEY"):
+        from mybot.providers.openai_provider import OpenAIProvider
+        return OpenAIProvider()
+    else:
+        logger.warning("未设置 OPENAI_API_KEY，使用 stub provider（无法真正对话）")
+        from mybot.providers.stub import StubProvider
+        return StubProvider()
+
+
 def create_agent() -> AgentLoop:
     """创建并返回 AgentLoop 实例。"""
-    bus = MessageBus()
-    provider = StubProvider()
-    session_manager = SessionManager()
-
     return AgentLoop(
-        bus=bus,
-        provider=provider,
+        bus=MessageBus(),
+        provider=create_provider(),
         model=None,
-        session_manager=session_manager,
+        session_manager=SessionManager(),
     )
 
 
@@ -42,15 +53,12 @@ async def cli_loop(agent: AgentLoop) -> None:
 
     while True:
         try:
-            user_input = await loop.run_in_executor(
-                None, sys.stdin.readline,
-            )
+            user_input = await loop.run_in_executor(None, sys.stdin.readline)
         except (EOFError, KeyboardInterrupt):
             print("\n再见!", flush=True)
             break
 
         if not user_input:
-            # stdin 关闭（管道 EOF）
             break
 
         text = user_input.strip()
