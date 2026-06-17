@@ -3,9 +3,16 @@ from typing import Any
 
 from mybot.agent.tools.registry import ToolRegistry
 from loguru import logger
+from mybot.agent.tools.base import Tool
 
 
 class ToolLoader:
+
+    def discover(self) -> list[type[Tool]]:
+        pass
+
+    def _discover_plugins(self) -> dict[str, type[Tool]]:
+        pass
 
     def loader(
         self, ctx: Any, registry: ToolRegistry, *, scope: str = "core"

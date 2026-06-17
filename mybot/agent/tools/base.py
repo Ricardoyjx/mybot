@@ -1,6 +1,14 @@
+from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, TypeVar
+import typing
 
+if typing.TYPE_CHECKING:
+    from pydantic import BaseModel
+
+    from mybot.agent.tools.context import ToolContext
+
+_ToolT = TypeVar("_ToolT", bound="Tool")
 # Matches :meth:`Tool._cast_value` / :meth:`Schema.validate_json_schema_value` behavior
 _JSON_TYPE_MAP: dict[str, type | tuple[type, ...]] = {
     "string": str,
@@ -53,3 +61,15 @@ class Tool(ABC):
         if schema.get("type", "object") != "object":
             return params
         return self._cast_object(params, schema)
+
+    config_key: str = ""
+    _plugin_discoverable: bool = True
+    _scopes: set[str] = {"core"}
+
+    @classmethod
+    def enabled(cls, ctx: ToolContext) -> bool:
+        return True
+
+    @classmethod
+    def create(cls, ctx: ToolContext) -> Tool:
+        return cls()
