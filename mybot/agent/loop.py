@@ -121,6 +121,8 @@ class AgentLoop:
             return None
 
         session.add_assistant_message(result)
+        if self.session is not None:
+            self.session.save(session, fsync=True)
 
         return OutboundMessage(
             channel=msg.channel,
