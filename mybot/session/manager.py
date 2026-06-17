@@ -1,6 +1,11 @@
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 from datetime import datetime
+import re
+from mybot.utils.helpers import ensure_dir
+
+_UNSAFE_CHARS = re.compile(r'[<>:"/\\|?*]')
 
 
 @dataclass
@@ -40,9 +45,38 @@ class Session:
 
 @dataclass
 class SessionManager:
-    sessions: dict[str, Session] = field(default_factory=dict)
+    def __init__(self, workspace: Path):
+        self.workspace = self.workspace
+        self.sessions_dir = ensure_dir(self.workspace / "sessions")
+        self._cache: dict[str, Session] = {}
 
-    def get_or_create(self, session_key: str) -> Session:
-        if session_key not in self.sessions:
-            self.sessions[session_key] = Session(session_key=session_key)
-        return self.sessions[session_key]
+    def get_or_create(self, key: str) -> Session:
+        if key in self._cache:
+            return self._cache[key]
+
+        session = self._load(key)
+        if session is None:
+            session = Session(key=key)
+
+        self._cache[key] = session
+        return session
+
+    @staticmethod
+    def safe_key(key: str) -> str:
+        return _UNSAFE_CHARS.sub("_", key.replace(":", "_")).strip()
+
+    def _get_session_path(self, key: str) -> Path:
+        """get the file path for a session"""
+        return self.sessions_dir / f"{self.safe_key(key)}.jsonl"
+
+    def _load(self, session_key) -> Session | None:
+        pass
+
+    def save(self) -> None:
+        pass
+
+    def invalidate(self, key: str) -> None:
+        pass
+
+    def delete_session(self, key: str) -> bool:
+        pass
