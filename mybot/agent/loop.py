@@ -1,4 +1,5 @@
 import asyncio
+from mybot.agent.tools.self import MyTool
 from loguru import logger
 from mybot.bus.queue import MessageBus
 from mybot.bus.events import InboundMessage, OutboundMessage
@@ -10,7 +11,8 @@ from mybot.agent.memory import MemoryStore
 from mybot.agent.hook import AgentHook
 from mybot.providers.base import LLMProvider
 from typing import Any
-from mybot.agent import context as agent_context
+
+# from mybot.agent import context as agent_context
 
 UNIFIED_SESSION_KEY = "unified:default"
 
@@ -57,7 +59,7 @@ class AgentLoop:
                 logger.warning("Error consuming inbound message: {}, continuing...", e)
                 continue
 
-            raw = msg.content.strip()
+            # raw = msg.content.strip()
             effective_key = self._effective_session_key(msg)
 
             task = asyncio.create_task(self._dispatch(msg))
@@ -139,3 +141,19 @@ class AgentLoop:
         if self.session is not None:
             return self.session.get_or_create(session_key)
         return Session(session_key=session_key)
+
+    def _register_default_tools(self) -> None:
+        from mybot.agent.tools.context import ToolContext
+        from mybot.agent.tools.loader import ToolLoader
+
+        ctx = ToolContext()
+
+        loader = ToolLoader()
+        registered = loader.load(ctx, self.tools)
+
+        # MyTool needs runtime state reference -- manual registration
+        if self.tools_config.my.enable:
+            self.tools.register(MyTool())
+            registered.append("my")
+
+        logger.info("Registered {} tools: {}", len(registered), registered)
