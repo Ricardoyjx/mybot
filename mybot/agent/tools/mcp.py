@@ -312,6 +312,7 @@ async def connect_mcp_servers(
         server_stack = AsyncExitStack()
         await server_stack.__aenter__()
 
+        registered_count: int = 0
         # todo 判断transport_type值: url,see,streamableHttp
         try:
             transport_type = cfg.type
