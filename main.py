@@ -12,6 +12,7 @@ nanobot CLI 入口
 import asyncio
 import os
 import sys
+from pathlib import Path
 
 from loguru import logger
 
@@ -44,7 +45,7 @@ def create_agent() -> AgentLoop:
         bus=MessageBus(),
         provider=create_provider(),
         model=None,
-        session_manager=SessionManager(),
+        session_manager=SessionManager(workspace=Path.home() / "Projects" / "my-bot"),
     )
 
 

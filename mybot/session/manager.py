@@ -78,7 +78,7 @@ class SessionManager:
         """load a session from disk"""
         path = self._get_session_path(key)
         if not path.exists():
-            logger.error("session file not found {}", key)
+            logger.info("session file not found {}", key)
             return None
 
         try:
@@ -122,7 +122,7 @@ class SessionManager:
             )
 
         except Exception as e:
-            logger.warning("Session file not found {}:{}", key, e)
+            logger.warning("Failed to load session {}: {}", key, e)
             return None
 
     def save(self, session: Session, *, fsync: bool = True) -> None:

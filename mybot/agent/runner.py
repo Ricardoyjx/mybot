@@ -32,6 +32,7 @@ class AgentRunner:
         user_message: str,
         session_id: str,
         hook: AgentHook,
+        history: list[dict[str, str]] | None = None,
     ) -> str:
         """完整的ReAct 循环"""
 
@@ -39,6 +40,7 @@ class AgentRunner:
         messages = self.context_builder.build_messages(
             user_message=user_message,
             session_id=session_id,
+            history=history,
         )
 
         # get reachable tools

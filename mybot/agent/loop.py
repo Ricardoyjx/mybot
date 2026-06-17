@@ -113,8 +113,9 @@ class AgentLoop:
         )
         result = await runner.run(
             user_message=msg.content,
-            session_id=session.session_key,
+            session_id=session.key,
             hook=AgentHook(),
+            history=history,
         )
 
         if not result:
