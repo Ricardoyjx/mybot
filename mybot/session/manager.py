@@ -2,8 +2,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from datetime import datetime
-import re
+import re, json
 from mybot.utils.helpers import ensure_dir
+from loguru import logger
 
 _UNSAFE_CHARS = re.compile(r'[<>:"/\\|?*]')
 
@@ -46,7 +47,7 @@ class Session:
 @dataclass
 class SessionManager:
     def __init__(self, workspace: Path):
-        self.workspace = self.workspace
+        self.workspace = workspace
         self.sessions_dir = ensure_dir(self.workspace / "sessions")
         self._cache: dict[str, Session] = {}
 
@@ -69,8 +70,56 @@ class SessionManager:
         """get the file path for a session"""
         return self.sessions_dir / f"{self.safe_key(key)}.jsonl"
 
-    def _load(self, session_key) -> Session | None:
-        pass
+    def _load(self, key) -> Session | None:
+        """load a session from disk"""
+        path = self._get_session_path(key)
+        if not path.exists():
+            logger.error("Failed to migrate session {}", key)
+            return None
+
+        try:
+            messages = []
+            metadata = {}
+            created_at = None
+            updated_at = None
+            last_consolidated = 0
+
+            with open(path, encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+
+                    data = json.loads(line)
+
+                    if data.get("_type") == "metadata":
+                        metadata = data.get("metadata", {})
+                        created_at = (
+                            datetime.fromisoformat(data["created_at"])
+                            if data.get("created_at")
+                            else None
+                        )
+                        updated_at = (
+                            datetime.fromisoformat(data["updated_at"])
+                            if data.get("updated_at")
+                            else None
+                        )
+                        last_consolidated = data.get("last_consolidated", 0)
+                    else:
+                        messages.append(data)
+
+            return Session(
+                key=key,
+                messages=messages,
+                created_at=created_at or datetime.now(),
+                updated_at=updated_at or datetime.now(),
+                metadata=metadata,
+                last_consolidated=last_consolidated,
+            )
+
+        except Exception as e:
+            logger.warning("Failed to load session {}:{}", key, e)
+            return None
 
     def save(self) -> None:
         pass
