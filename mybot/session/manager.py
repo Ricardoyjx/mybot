@@ -154,7 +154,17 @@ class SessionManager:
         self._cache[session.key] = session
 
     def invalidate(self, key: str) -> None:
-        pass
+        """Remove a session from the in-memory cache."""
+        self._cache.pop(key, None)
 
     def delete_session(self, key: str) -> bool:
-        pass
+        path = self._get_session_path(key)
+        self.invalidate(key)
+        if not path.exists():
+            return False
+        try:
+            path.unlink()
+            return True
+        except OSError as e:
+            logger.warning("Failed to delete session file{}:{}", path, e)
+            return False
