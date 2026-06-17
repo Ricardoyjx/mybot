@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+import os
 from pathlib import Path
 from typing import Any
 from datetime import datetime
@@ -11,10 +12,12 @@ _UNSAFE_CHARS = re.compile(r'[<>:"/\\|?*]')
 
 @dataclass
 class Session:
-    session_key: str
+    key: str
     messages: list[dict[str, Any]] = field(default_factory=list)
     created_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    last_consolidated: int = 0  # Number of messages already consolidated to files
 
     def add_user_message(self, text: str, **extra: Any) -> None:
         self.messages.append(
@@ -70,7 +73,7 @@ class SessionManager:
         """get the file path for a session"""
         return self.sessions_dir / f"{self.safe_key(key)}.jsonl"
 
-    def _load(self, key) -> Session | None:
+    def _load(self, key: str) -> Session | None:
         """load a session from disk"""
         path = self._get_session_path(key)
         if not path.exists():
@@ -121,8 +124,34 @@ class SessionManager:
             logger.warning("Failed to load session {}:{}", key, e)
             return None
 
-    def save(self) -> None:
-        pass
+    def save(self, session: Session, *, fsync: bool = False) -> None:
+        """save a session to disk atomically"""
+        path = self._get_session_path(session.key)
+        tmp_path = path.with_suffix(".jsonl.tmp")
+
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                metadata_line = {
+                    "_type": "metadata",
+                    "key": session.key,
+                    "created_at": session.created_at.isoformat(),
+                    "updated_at": session.updated_at.isoformat(),
+                    "metadata": session.metadata,
+                    "last_consolidated": session.last_consolidated,
+                }
+                f.write(json.dumps(metadata_line, ensure_ascii=False) + "\n")
+                for msg in session.messages:
+                    f.writer(json.dumps(msg, ensure_ascii=False) + "\n")
+                if fsync:
+                    f.flush()
+                    os.fsync(f.fileno())
+            os.replace(tmp_path, path)
+
+        except BaseException:
+            tmp_path.unlink(missing_ok=True)
+            raise
+
+        self._cache[session.key] = session
 
     def invalidate(self, key: str) -> None:
         pass
