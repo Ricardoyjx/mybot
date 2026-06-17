@@ -20,6 +20,7 @@ class Session:
     last_consolidated: int = 0  # Number of messages already consolidated to files
 
     def add_user_message(self, text: str, **extra: Any) -> None:
+        self.updated_at = datetime.now()
         self.messages.append(
             {
                 "role": "user",
@@ -28,9 +29,9 @@ class Session:
                 **extra,
             }
         )
-        self.updated_at = datetime.now()
 
     def add_assistant_message(self, text: str, **extra: Any) -> None:
+        self.updated_at = datetime.now()
         self.messages.append(
             {
                 "role": "assistant",
@@ -39,7 +40,6 @@ class Session:
                 **extra,
             }
         )
-        self.updated_at = datetime.now()
 
     def get_history(self, limit: int = 0) -> list[dict[str, Any]]:
         if limit <= 0:
@@ -77,7 +77,7 @@ class SessionManager:
         """load a session from disk"""
         path = self._get_session_path(key)
         if not path.exists():
-            logger.error("Failed to migrate session {}", key)
+            logger.error("session file not found {}", key)
             return None
 
         try:
@@ -121,10 +121,10 @@ class SessionManager:
             )
 
         except Exception as e:
-            logger.warning("Failed to load session {}:{}", key, e)
+            logger.warning("Session file not found {}:{}", key, e)
             return None
 
-    def save(self, session: Session, *, fsync: bool = False) -> None:
+    def save(self, session: Session, *, fsync: bool = True) -> None:
         """save a session to disk atomically"""
         path = self._get_session_path(session.key)
         tmp_path = path.with_suffix(".jsonl.tmp")
@@ -141,7 +141,7 @@ class SessionManager:
                 }
                 f.write(json.dumps(metadata_line, ensure_ascii=False) + "\n")
                 for msg in session.messages:
-                    f.writer(json.dumps(msg, ensure_ascii=False) + "\n")
+                    f.write(json.dumps(msg, ensure_ascii=False) + "\n")
                 if fsync:
                     f.flush()
                     os.fsync(f.fileno())
