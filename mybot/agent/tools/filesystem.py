@@ -188,11 +188,34 @@ class ReadFileTool(_FsTool):
             fp = Path(path) if path else None
             if not fp.exists():
                 return f"Error: File not found: {path}"
-            if not fp.is_file:
+            if not fp.is_file():
                 return f"Error: Not a file: {path}"
 
             if fp.suffix.lower() in {".docx", ".xlsx", ".pptx"}:
                 return self._read_office_doc(fp)
+
+            # Read text file with line-based pagination
+            try:
+                text = fp.read_text(encoding="utf-8")
+            except UnicodeDecodeError:
+                text = fp.read_text(encoding="latin-1")
+
+            lines = text.splitlines(keepends=True)
+            total = len(lines)
+            start = max(0, offset - 1)  # offset is 1-indexed
+            end = start + (limit or self._DEFAULT_LIMIT)
+            selected = lines[start:end]
+
+            numbered = [
+                f"{start + i + 1}|{line.rstrip(chr(10))}"
+                for i, line in enumerate(selected)
+            ]
+            result = "\n".join(numbered)
+
+            if len(result) > self._MAX_CHARS:
+                result = result[: self._MAX_CHARS] + "\n... (truncated)"
+
+            return result
 
         except PermissionError as e:
             return f"Error: {e}"
