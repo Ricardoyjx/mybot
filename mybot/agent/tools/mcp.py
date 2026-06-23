@@ -269,7 +269,6 @@ class MCPPromptWrapper(_MCPWrapperBase):
             return True
 
     async def execute(self, **kwargs: Any) -> str:
-        from mcp import types
 
         logger.debug("MCP tool '{}' calling with args: {}", self._name, kwargs)
         try:
