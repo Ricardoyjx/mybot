@@ -78,7 +78,6 @@ async def cli_loop(agent: AgentLoop) -> None:
             response = await agent.process_direct(
                 content=text,
                 session_key=SESSION_KEY,
-                tools=ToolRegistry,
             )
             if response and response.content:
                 print(f"bot> {response.content}", flush=True)

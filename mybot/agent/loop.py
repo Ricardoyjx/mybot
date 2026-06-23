@@ -1,8 +1,7 @@
 import asyncio
-from curses import noecho
-from sre_constants import IN
 
-from attr import dataclass
+
+from dataclasses import dataclass
 from mybot.agent.tools.self import MyTool
 from loguru import logger
 from mybot.bus.queue import MessageBus
@@ -98,7 +97,7 @@ class AgentLoop:
         session_key: str = "cli:direct",
         channel: str = "cli",
         chat_id: str = "direct",
-        tools: ToolRegistry | None = None,
+        # tools: ToolRegistry | None = None,
     ) -> OutboundMessage | None:
         """Process a message directly and return the outbound payload."""
         if not self.tool_registry._tools:
@@ -114,7 +113,7 @@ class AgentLoop:
         return await self._process_message(
             msg,
             session_key=session_key,
-            tools=tools,
+            # tools=tools,
         )
 
     async def _process_message(
@@ -122,7 +121,7 @@ class AgentLoop:
         msg: InboundMessage,
         *,
         session_key: str = "default",
-        tools: Any | None = None,
+        # tools: Any | None = None,
     ) -> OutboundMessage | None:
         session = self._ensure_session(session_key)
         session.add_user_message(msg.content)

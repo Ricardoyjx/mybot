@@ -36,8 +36,8 @@ class _FsTool(Tool):
         workspace: Path | None = None,
         allowed_dir: Path | None = None,
     ):
-        self.workspace = (workspace,)
-        self.allowed_dir = (allowed_dir,)
+        self.workspace = workspace
+        self.allowed_dir = allowed_dir
 
     @classmethod
     def create(cls, ctx: Any) -> Tool:
