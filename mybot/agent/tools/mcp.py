@@ -1,4 +1,6 @@
 from contextlib import AsyncExitStack, suppress
+from http import server
+from tkinter import E
 from mybot.agent.tools.base import Tool
 from mybot.agent.tools import ToolRegistry
 from typing import Any
@@ -8,21 +10,9 @@ import asyncio
 import os
 import shutil
 import sys
+import re
 
-
-def _normalize_schema_for_openai(schema: any) -> dict[str, Any]:
-    """Normalize only nullable JSON Schema patterns for tool definitions."""
-    if not isinstance(schema, dict):
-        return {"type": "object", "properties": {}}
-
-    normalized = dict(schema)
-
-    raw_type = normalized.get("type")
-    if isinstance(raw_type, list):
-        non_null = [item for item in raw_type if item != "null"]
-
-    pass
-
+_SANITIZE_RE = re.compile(r"_+")
 
 _ReconnectCallback = Callable[[str, str, Tool], Awaitable[Tool | None]]
 
@@ -98,21 +88,77 @@ class _MCPWrapperBase(Tool):
             return False
         refreshed_tool = await self._reconnect(self._server_name, self._name, self)
         refreshed_session = getattr(refreshed_tool, "_session", None)
-        refreshed_session = refreshed_tool._session
+        if refreshed_session is None:
+            logger.warning(
+                "MCP {} '{}' could not refresh session for server '{}'",
+                capability_kind,
+                self._name,
+                self._server_name,
+            )
+            return False
+        self._session = refreshed_session
+        return True
+
+
+def _sanitize_name(name: str) -> str:
+    """Sanitize an MCP-derived name for model API compatibility."""
+    return _SANITIZE_RE.sub("_", re.sub(r"[^a-zA-Z0-9_-]", "_", name))
 
 
 class MCPToolWrapper(_MCPWrapperBase):
     """将远程mcp调用包装为本地工具接口"""
 
-    def __init__(self, server_name, tool_spec):
-        self.name = f"mcp_{server_name}_{tool_spec.name}"
-        self.description = tool_spec.description
-        self.schema = self._normalize_schema(tool_spec.input_schema)
+    _plugin_discoverable = False
 
-    async def run(self, args):
-        # 将本地调用转换为 MCP 协议的远程调用
-        result = await self.mcp_client.call_tool(self.original_name, args)
-        return result
+    def __init__(self, session, server_name: str, tool_def, tool_timeout: int = 30):
+        self._set_mcp_connection(session, server_name)
+        self._original_name = tool_def.name
+        self._name = _sanitize_name(f"mcp_{server_name}_{tool_def.name}")
+        self._description = tool_def.description or tool_def.name
+        raw_schema = tool_def.inputSchema or {"type": "object", "properties:": {}}
+        self.parameters = self._normalize_schema_for_openai(raw_schema)
+        self._tool_timeout = tool_timeout
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    @property
+    def description(self) -> str:
+        return self._description
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return self._parameters
+
+    async def execute(self, **kwargs: Any) -> str:
+        # from mcp import types
+
+        # retried_transient = False
+        # refreshed_session = False
+
+        while True:
+            try:
+                result = await asyncio.wait_for(
+                    self._session.call_tool(self._original_name, arguments=kwargs),
+                    timeout=self._tool_timeout,
+                )
+            except Exception as e:
+                logger.exception(
+                    "MCP tool '{}' failed after retry: {}",
+                    self._name,
+                    type(e).__name__,
+                )
+                return f"(MCP tool call failed after retry: {type(e).__name__})"
+
+            else:
+                parts = []
+                for block in result.content:
+                    if isinstance(block, type.TextContent):
+                        parts.append(block.text)
+                    else:
+                        parts.append(str(block))
+                return "\n".join(parts) or "(no output)"
 
     def _normalize_schema(self, schema):
         """将 MCP schema 转换为 OpenAI 兼容格式"""
