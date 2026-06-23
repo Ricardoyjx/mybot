@@ -43,7 +43,6 @@ class ToolRegistry:
         """Alias for get_definition, used by AgentRunner."""
         return self.get_definition()
 
-
     def get_definition(self) -> list[dict[str, Any]]:
         if self._cached_definitions is not None:
             return self._cached_definitions
@@ -97,7 +96,7 @@ class ToolRegistry:
 
         stripped = value.strip()
         if not stripped:
-            return
+            return {}
 
         if not stripped.startswith(("{", "[")):
             return value
