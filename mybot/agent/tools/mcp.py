@@ -1,6 +1,4 @@
 from contextlib import AsyncExitStack, suppress
-from http import server
-from tkinter import E
 from mybot.agent.tools.base import Tool
 from mybot.agent.tools import ToolRegistry
 from typing import Any
@@ -116,7 +114,7 @@ class MCPToolWrapper(_MCPWrapperBase):
         self._name = _sanitize_name(f"mcp_{server_name}_{tool_def.name}")
         self._description = tool_def.description or tool_def.name
         raw_schema = tool_def.inputSchema or {"type": "object", "properties:": {}}
-        self.parameters = self._normalize_schema_for_openai(raw_schema)
+        self._parameters = self._normalize_schema_for_openai(raw_schema)
         self._tool_timeout = tool_timeout
 
     @property
@@ -236,7 +234,7 @@ class MCPPromptWrapper(_MCPWrapperBase):
         self._set_mcp_connection(session, server_name)
         self._prompt_name = prompt_def.name
         self._name = f"mcp_{server_name}_prompt_{prompt_def.name}"
-        desc = prompt_def.description or prompt_def.name
+        # desc = prompt_def.description or prompt_def.name
         self._prompt_timeout = prompt_timeout
 
         properties: dict[str, Any] = {}
@@ -273,8 +271,8 @@ class MCPPromptWrapper(_MCPWrapperBase):
     async def execute(self, **kwargs: Any) -> str:
         from mcp import types
 
-        retried_transient = False
-        refreshed_session = False
+        # retried_transient = False
+        # refreshed_session = False
 
         while True:
             try:
@@ -314,6 +312,9 @@ class MCPPromptWrapper(_MCPWrapperBase):
 
 async def connect_missing_servers(state: Any, registry: ToolRegistry) -> None:
     """Connect configured MCP servers that are not currently live."""
+    mcp_server = state._mcp_servers
+    if not mcp_server:
+        return {}
     missing_servers = {
         name: cfg
         for name, cfg in state._mcp_servers.items()
@@ -488,8 +489,69 @@ async def connect_mcp_servers(
         try:
             result = await connect_single_server(name, cfg)
         except Exception as e:
-            pass
+            logger.exception("MCP server '{}': failed to connect: {}", name, e)
 
         if result is not None and result[1] is not None:
             server_stacks[result[0]] = result[1]
     return server_stacks
+
+
+def _extract_nullable_branch(options: Any) -> tuple[dict[str, Any], bool] | None:
+    """Return the single non-null branch for nullable unions."""
+    if not isinstance(options, list):
+        return None
+
+    non_null: list[dict[str, Any]] = []
+    saw_null = False
+    for option in options:
+        if not isinstance(option, dict):
+            return None
+        if option.get("type") == "null":
+            saw_null = True
+            continue
+        non_null.append(option)
+
+    if saw_null and len(non_null) == 1:
+        return non_null[0], True
+    return None
+
+
+def _normalize_schema_for_openai(schema: Any) -> dict[str, Any]:
+    """Normalize only nullable JSON Schema patterns for tool definitions."""
+    if not isinstance(schema, dict):
+        return {"type": "object", "properties": {}}
+
+    normalized = dict(schema)
+
+    raw_type = normalized.get("type")
+    if isinstance(raw_type, list):
+        non_null = [item for item in raw_type if item != "null"]
+        if "null" in raw_type and len(non_null) == 1:
+            normalized["type"] = non_null[0]
+            normalized["nullable"] = True
+
+    for key in ("oneOf", "anyOf"):
+        nullable_branch = _extract_nullable_branch(normalized.get(key))
+        if nullable_branch is not None:
+            branch, _ = nullable_branch
+            merged = {k: v for k, v in normalized.items() if k != key}
+            merged.update(branch)
+            normalized = merged
+            normalized["nullable"] = True
+            break
+
+    if "properties" in normalized and isinstance(normalized["properties"], dict):
+        normalized["properties"] = {
+            name: _normalize_schema_for_openai(prop) if isinstance(prop, dict) else prop
+            for name, prop in normalized["properties"].items()
+        }
+
+    if "items" in normalized and isinstance(normalized["items"], dict):
+        normalized["items"] = _normalize_schema_for_openai(normalized["items"])
+
+    if normalized.get("type") != "object":
+        return normalized
+
+    normalized.setdefault("properties", {})
+    normalized.setdefault("required", [])
+    return normalized
