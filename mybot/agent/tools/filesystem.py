@@ -43,7 +43,7 @@ class _FsTool(Tool):
     @classmethod
     def create(cls, ctx: Any) -> Tool:
 
-        restrict = ctx.config.restrict_to_workspace or ctx.config.exec.sandbox
+        restrict = ctx.restrict_to_workspace or ctx.config.exec.sandbox
         allowed_dir = Path(ctx.workspace) if restrict else None
         return cls(
             workspace=Path(ctx.workspace),

@@ -47,6 +47,7 @@ class AgentLoop:
 
     async def run(self) -> None:
         self._running = True
+        self._register_default_tools()
         logger.info("Agent loop started")
 
         while self._running:
@@ -149,11 +150,10 @@ class AgentLoop:
         ctx = ToolContext()
 
         loader = ToolLoader()
-        registered = loader.load(ctx, self.tools)
+        registered = loader.load(ctx, self.tool_registry)
 
         # MyTool needs runtime state reference -- manual registration
-        if self.tools_config.my.enable:
-            self.tools.register(MyTool())
-            registered.append("my")
+        self.tool_registry.register(MyTool())
+        registered.append("my")
 
         logger.info("Registered {} tools: {}", len(registered), registered)
