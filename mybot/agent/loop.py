@@ -147,7 +147,9 @@ class AgentLoop:
         from mybot.agent.tools.context import ToolContext
         from mybot.agent.tools.loader import ToolLoader
 
+        logger.info("AgentLoop: starting tool registration...")
         ctx = ToolContext()
+        logger.debug("AgentLoop: ToolContext created, workspace={}", ctx.workspace)
 
         loader = ToolLoader()
         registered = loader.load(ctx, self.tool_registry)
@@ -155,5 +157,10 @@ class AgentLoop:
         # MyTool needs runtime state reference -- manual registration
         self.tool_registry.register(MyTool())
         registered.append("my")
+        logger.debug("AgentLoop: registered MyTool manually")
 
-        logger.info("Registered {} tools: {}", len(registered), registered)
+        logger.info(
+            "AgentLoop: tool registration complete, {} tools: {}",
+            len(registered),
+            registered,
+        )

@@ -16,6 +16,7 @@ class ToolLoader:
     def discover(self) -> list[type[Tool]]:
         """Scan mybot.agent.tools package for Tool subclasses."""
         found: list[type[Tool]] = []
+        logger.debug("ToolLoader: scanning {}", tools_pkg.__path__)
         for _importer, modname, _ispkg in pkgutil.iter_modules(
             tools_pkg.__path__, prefix=f"{tools_pkg.__name__}."
         ):
@@ -23,6 +24,7 @@ class ToolLoader:
                 import importlib
 
                 mod = importlib.import_module(modname)
+                logger.debug("ToolLoader: imported module {}", modname)
             except Exception:
                 logger.warning("ToolLoader: failed to import {}", modname)
                 continue
@@ -35,11 +37,14 @@ class ToolLoader:
                     and not getattr(obj, "__abstractmethods__", None)
                     and getattr(obj, "_plugin_discoverable", True)
                 ):
+                    logger.debug("ToolLoader: discovered tool class {}", obj.__name__)
                     found.append(obj)
+        logger.info("ToolLoader: discovered {} builtin tool classes", len(found))
         return found
 
     def _discover_plugins(self) -> dict[str, type[Tool]]:
         """Discover third-party plugin tools via entry points (placeholder)."""
+        logger.debug("ToolLoader: plugin discovery not yet implemented")
         return {}
 
     def load(
@@ -50,12 +55,19 @@ class ToolLoader:
 
         sources = [(self.discover(), False), (self._discover_plugins().values(), True)]
         for source, is_plugin_source in sources:
+            source_label = "plugin" if is_plugin_source else "builtin"
             for tool_cls in source:
                 cls_label = tool_cls.__name__
                 try:
                     if scope not in getattr(tool_cls, "_scopes", {"core"}):
+                        logger.debug(
+                            "ToolLoader: skipping {} (scope mismatch, needs {})",
+                            cls_label,
+                            getattr(tool_cls, "_scopes", set()),
+                        )
                         continue
                     if not tool_cls.enabled(ctx):
+                        logger.debug("ToolLoader: skipping {} (disabled by config)", cls_label)
                         continue
                     tool = tool_cls.create(ctx)
                     if registry.has(tool.name):
@@ -75,6 +87,13 @@ class ToolLoader:
                     registered.append(tool.name)
                     if not is_plugin_source:
                         builtin_names.add(tool.name)
+                    logger.info(
+                        "ToolLoader: registered [{}] {} -> {}",
+                        source_label,
+                        cls_label,
+                        tool.name,
+                    )
                 except Exception:
                     logger.exception("Failed to register tool: {}", cls_label)
+        logger.info("ToolLoader: load complete, {} tools registered", len(registered))
         return registered
