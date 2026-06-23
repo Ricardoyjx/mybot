@@ -1,6 +1,9 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Any, TypeVar
+from copy import deepcopy
+from re import A
+from tkinter import NO
+from typing import Any, Callable, TypeVar
 import typing
 
 if typing.TYPE_CHECKING:
@@ -73,3 +76,24 @@ class Tool(ABC):
     @classmethod
     def create(cls, ctx: ToolContext) -> Tool:
         return cls()
+
+
+def tool_parameters(schema: dict[str, Any]) -> Callable[[type[_ToolT]], type[_ToolT]]:
+    """Class decorator: attach JSON Schema and inject a concrete ``parameters`` property."""
+
+    def decorator(cls: type[_ToolT]) -> type[_ToolT]:
+        frozen = deepcopy(schema)
+
+        @property
+        def parameters(self: Any) -> dict[str, Any]:
+            return deepcopy(frozen)
+
+        cls.parameters = parameters
+
+        abstract = getattr(cls, "__abstractmethods__", None)
+        if abstract is not None and "parameters" in abstract:
+            cls.__abstractmethods__ = frozenset(abstract - {"parameters"})
+
+        return cls
+
+    return decorator
