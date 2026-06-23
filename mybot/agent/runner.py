@@ -71,6 +71,18 @@ class AgentRunner:
                 final_response = response.content
                 break
 
+            serializable_calls = []
+            for tc in response.tool_calls:
+                serializable_calls.append(
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                )
             # need to call tools
             messages.append(
                 {
