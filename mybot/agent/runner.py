@@ -1,10 +1,11 @@
-_TOOL_RESULT_MAX_CHARS = 16000
-
 from mybot.providers.base import LLMProvider
 from mybot.agent.tools.registry import ToolRegistry
 from mybot.agent.context import ContextBuilder
 from mybot.agent.memory import MemoryStore
 from mybot.agent.hook import AgentHook, AgentHookContext
+from loguru import logger
+
+_TOOL_RESULT_MAX_CHARS = 16000
 
 
 class AgentRunner:
@@ -45,6 +46,7 @@ class AgentRunner:
 
         # get reachable tools
         tools = self.tool_registry.get_tool_schemas()
+        logger.debug("Tools sent to LLM: {}", tools)  # ← 加这行
 
         final_response = ""
         tool_calls_history = []
@@ -88,7 +90,7 @@ class AgentRunner:
                 {
                     "role": "assistant",
                     "content": response.content,
-                    "tool_calls": response.tool_calls,
+                    "tool_calls": serializable_calls,
                 }
             )
             # lifecycle hook before execute tools
