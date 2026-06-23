@@ -17,7 +17,6 @@ from pathlib import Path
 from loguru import logger
 
 from mybot.agent.loop import AgentLoop
-from mybot.agent.tools import ToolRegistry
 from mybot.bus.queue import MessageBus
 from mybot.session.manager import SessionManager
 

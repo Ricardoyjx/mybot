@@ -1,7 +1,4 @@
 from pathlib import Path
-import re
-
-
 from mybot.agent.tools.base import Tool, tool_parameters
 from mybot.agent.tools.schema import (
     tool_parameters_schema,
@@ -200,7 +197,7 @@ class ReadFileTool(_FsTool):
                 text = fp.read_text(encoding="latin-1")
 
             lines = text.splitlines(keepends=True)
-            total = len(lines)
+            # total = len(lines)
             start = max(0, offset - 1)  # offset is 1-indexed
             end = start + (limit or self._DEFAULT_LIMIT)
             selected = lines[start:end]

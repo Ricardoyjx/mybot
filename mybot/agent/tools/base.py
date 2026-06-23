@@ -5,7 +5,6 @@ from typing import Any, Callable, TypeVar
 import typing
 
 if typing.TYPE_CHECKING:
-    from pydantic import BaseModel
 
     from mybot.agent.tools.context import ToolContext
 
