@@ -113,8 +113,8 @@ class MCPToolWrapper(_MCPWrapperBase):
         self._original_name = tool_def.name
         self._name = _sanitize_name(f"mcp_{server_name}_{tool_def.name}")
         self._description = tool_def.description or tool_def.name
-        raw_schema = tool_def.inputSchema or {"type": "object", "properties:": {}}
-        self._parameters = self._normalize_schema_for_openai(raw_schema)
+        raw_schema = tool_def.inputSchema or {"type": "object", "properties": {}}
+        self._parameters = _normalize_schema_for_openai(raw_schema)
         self._tool_timeout = tool_timeout
 
     @property
@@ -395,7 +395,7 @@ async def connect_mcp_servers(
             await session.initialize()
 
             tools = await session.list_tools()
-            enabled_tools = set(cfg.enable_tools)
+            enabled_tools = set(cfg.enabled_tools)
             matched_enabled_tools: set[str] = set()
 
             for tool_def in tools.tools:
