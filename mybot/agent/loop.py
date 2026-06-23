@@ -1,4 +1,5 @@
 import asyncio
+from curses import noecho
 from sre_constants import IN
 
 from attr import dataclass
@@ -37,6 +38,7 @@ class AgentLoop:
         tool_registry: ToolRegistry | None = None,
         # tools_config: ToolsConfig | None = None,
         unified_session: bool = False,
+        mcp_servers: dict | None = None,
     ):
         self._running = False
         self.bus = bus
@@ -46,6 +48,8 @@ class AgentLoop:
         self.model = model
         self.session = session_manager
         self.tool_registry = tool_registry or ToolRegistry()
+        self._mcp_servers = mcp_servers or {}
+        self._mcp_connecting = False
 
     def _effective_session_key(self, msg: InboundMessage) -> str:
         if self._unified_session and not msg.session_key_override:
@@ -97,6 +101,8 @@ class AgentLoop:
         tools: ToolRegistry | None = None,
     ) -> OutboundMessage | None:
         """Process a message directly and return the outbound payload."""
+        if not self.tool_registry._tools:
+            self._register_default_tools()
         await self._connect_mcp()
         msg = InboundMessage(
             sender_id="user",
@@ -171,7 +177,6 @@ class AgentLoop:
 
         # MyTool needs runtime state reference -- manual registration
         self.tool_registry.register(MyTool())
-        registered.append("my")
         logger.debug("AgentLoop: registered MyTool manually")
 
         logger.info(
