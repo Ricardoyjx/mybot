@@ -19,6 +19,7 @@ from loguru import logger
 from mybot.agent.loop import AgentLoop
 from mybot.bus.queue import MessageBus
 from mybot.session.manager import SessionManager
+from mybot.config.schema import MCPServerConfig
 
 SESSION_KEY = "cli:default"
 
@@ -46,6 +47,12 @@ def create_agent() -> AgentLoop:
         provider=create_provider(),
         model=None,
         session_manager=SessionManager(workspace=Path.home() / "Projects" / "my-bot"),
+        mcp_servers={
+            "filesystem": MCPServerConfig(
+                command="npx",
+                args=["-y", "@modelcontextprotocol/server-filesystem", "/home/ricardo"],
+            )
+        },
     )
 
 
