@@ -72,7 +72,9 @@ class ToolRegistry:
     ) -> tuple[Tool | None, Any, str | None]:
         tool = self._tools.get(name)
         params = self._coerce_params(tool, params)
-        if not isinstance(tool, dict):
+        if tool is None:
+            return (tool, params, f"Error: Tool '{name}' not found.")
+        if not isinstance(params, dict):
             return (
                 tool,
                 params,
@@ -83,7 +85,6 @@ class ToolRegistry:
                 ),
             )
         cast_params = tool.cast_params(params)
-        # todo validate params
 
         return tool, cast_params, None
 
