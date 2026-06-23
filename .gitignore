@@ -51,3 +51,8 @@ memory.json
 # Temporary files
 *.tmp
 *.bak
+
+# sessions files
+sessions/*
+test.docx
+sessions/cli_default.jsonl
