@@ -1,12 +1,14 @@
 import asyncio
 
 
+from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from mybot.agent.tools.self import MyTool
 from loguru import logger
 from mybot.bus.queue import MessageBus
 from mybot.bus.events import InboundMessage, OutboundMessage
 from mybot.agent.tools.registry import ToolRegistry
+from mybot.config.schema import MCPServerConfig
 from mybot.session.manager import Session, SessionManager
 from mybot.agent.runner import AgentRunner
 from mybot.agent.context import ContextBuilder
@@ -36,7 +38,7 @@ class AgentLoop:
         tool_registry: ToolRegistry | None = None,
         # tools_config: ToolsConfig | None = None,
         unified_session: bool = False,
-        mcp_servers: dict | None = None,
+        mcp_servers: dict[str, MCPServerConfig] | None = None,
     ):
         self._running = False
         self.bus = bus
@@ -47,6 +49,8 @@ class AgentLoop:
         self.session = session_manager
         self.tool_registry = tool_registry or ToolRegistry()
         self._mcp_servers = mcp_servers or {}
+        self._mcp_stacks: dict[str, AsyncExitStack] = {}
+        self._mcp_connected = False
         self._mcp_connecting = False
 
     def _effective_session_key(self, msg: InboundMessage) -> str:
