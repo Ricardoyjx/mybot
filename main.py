@@ -17,6 +17,7 @@ from pathlib import Path
 from loguru import logger
 
 from mybot.agent.loop import AgentLoop
+from mybot.agent.tools import ToolRegistry
 from mybot.bus.queue import MessageBus
 from mybot.session.manager import SessionManager
 
@@ -77,6 +78,7 @@ async def cli_loop(agent: AgentLoop) -> None:
             response = await agent.process_direct(
                 content=text,
                 session_key=SESSION_KEY,
+                tools=ToolRegistry,
             )
             if response and response.content:
                 print(f"bot> {response.content}", flush=True)

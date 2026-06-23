@@ -56,3 +56,4 @@ memory.json
 sessions/*
 test.docx
 sessions/cli_default.jsonl
+tools_tracing.md

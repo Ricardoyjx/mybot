@@ -1,4 +1,7 @@
 import asyncio
+from sre_constants import IN
+
+from attr import dataclass
 from mybot.agent.tools.self import MyTool
 from loguru import logger
 from mybot.bus.queue import MessageBus
@@ -11,10 +14,17 @@ from mybot.agent.memory import MemoryStore
 from mybot.agent.hook import AgentHook
 from mybot.providers.base import LLMProvider
 from typing import Any
+import mybot.agent.context as agent_context
 
 # from mybot.agent import context as agent_context
 
 UNIFIED_SESSION_KEY = "unified:default"
+
+
+@dataclass
+class TurnContext:
+    msg: InboundMessage
+    session_key: str
 
 
 class AgentLoop:
@@ -94,7 +104,12 @@ class AgentLoop:
             content=content,
             channel=channel,
         )
-        return await self._process_message(msg, session_key=session_key)
+
+        return await self._process_message(
+            msg,
+            session_key=session_key,
+            tools=tools,
+        )
 
     async def _process_message(
         self,
@@ -136,7 +151,7 @@ class AgentLoop:
 
     async def _connect_mcp(self) -> None:
         """Connect configured MCP servers."""
-        # await agent_context.connect_mcp(self, self.tool_registry)  # TODO: MCP 连接暂未实现
+        await agent_context.connect_mcp(self, self.tool_registry)
 
     def _ensure_session(self, session_key: str) -> Session:
         if self.session is not None:
