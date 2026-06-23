@@ -115,7 +115,9 @@ async def bus_loop(agent: AgentLoop) -> None:
 
 def main() -> None:
     logger.remove()
-    logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {level} | {message}")
+    logger.add(
+        sys.stderr, level="DEBUG", format="{time:HH:mm:ss} | {level} | {message}"
+    )
 
     agent = create_agent()
 
