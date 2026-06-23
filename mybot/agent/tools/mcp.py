@@ -152,7 +152,7 @@ class MCPToolWrapper(_MCPWrapperBase):
             else:
                 parts = []
                 for block in result.content:
-                    if isinstance(block, type.TextContent):
+                    if hasattr(block, "text"):
                         parts.append(block.text)
                     else:
                         parts.append(str(block))
@@ -271,43 +271,34 @@ class MCPPromptWrapper(_MCPWrapperBase):
     async def execute(self, **kwargs: Any) -> str:
         from mcp import types
 
-        # retried_transient = False
-        # refreshed_session = False
-
-        while True:
-            try:
-                result = await asyncio.wait_for(
-                    self._session.get_prompt(
-                        self._prompt_name,
-                        arguments=kwargs,
-                        timeout=self._prompt_timeout,
-                    )
+        logger.debug("MCP tool '{}' calling with args: {}", self._name, kwargs)
+        try:
+            result = await asyncio.wait_for(
+                self._session.call_tool(
+                    self._original_name,
+                    arguments=kwargs,
+                    timeout=self._tool_timeout,
                 )
-                pass
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "MCP prompt '{}' timed out after {}s",
-                    self._name,
-                    self._prompt_timeout,
-                )
-                return f"(MCP prompt call timed out after {self._prompt_timeout}s)"
-            else:
-                parts: list[str] = []
-                for message in result.messages:
-                    content = message.content
-                    if isinstance(content, types.TextContent):
-                        parts.append(content.text)
-                    elif isinstance(content, list):
-                        for block in content:
-                            if isinstance(block, types.TextContent):
-                                parts.append(block.text)
-                            else:
-                                parts.append(str(block))
-                    else:
-                        parts.append(str(content))
-                return "\n".join(parts) or "(no output)"
+            )
+            logger.debug(
+                "MCP tool '{}' result type: {}, content: {}",
+                self._name,
+                type(result),
+                result,
+            )
 
-            return "(MCP prompt call failed)"
+            parts = []
+            for block in result.content:
+                if hasattr(block, "text"):
+                    parts.append(block.text)
+                else:
+                    parts.append(str(block))
+            return "\n".join(parts) or "(no output)"
+        except Exception as e:
+            logger.error(
+                "MCP tool '{}' failed: {} - {}", self._name, type(e).__name__, e
+            )
+            return f"Error: MCP tool '{self._original_name}' failed: {e}"
 
 
 async def connect_missing_servers(state: Any, registry: ToolRegistry) -> None:
