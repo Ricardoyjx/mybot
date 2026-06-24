@@ -130,33 +130,27 @@ class MCPToolWrapper(_MCPWrapperBase):
         return self._parameters
 
     async def execute(self, **kwargs: Any) -> str:
-        # from mcp import types
+        try:
+            result = await asyncio.wait_for(
+                self._session.call_tool(self._original_name, arguments=kwargs),
+                timeout=self._tool_timeout,
+            )
+        except Exception as e:
+            logger.exception(
+                "MCP tool '{}' failed after retry: {}",
+                self._name,
+                type(e).__name__,
+            )
+            return f"(MCP tool call failed after retry: {type(e).__name__})"
 
-        # retried_transient = False
-        # refreshed_session = False
-
-        while True:
-            try:
-                result = await asyncio.wait_for(
-                    self._session.call_tool(self._original_name, arguments=kwargs),
-                    timeout=self._tool_timeout,
-                )
-            except Exception as e:
-                logger.exception(
-                    "MCP tool '{}' failed after retry: {}",
-                    self._name,
-                    type(e).__name__,
-                )
-                return f"(MCP tool call failed after retry: {type(e).__name__})"
-
-            else:
-                parts = []
-                for block in result.content:
-                    if hasattr(block, "text"):
-                        parts.append(block.text)
-                    else:
-                        parts.append(str(block))
-                return "\n".join(parts) or "(no output)"
+        else:
+            parts = []
+            for block in result.content:
+                if hasattr(block, "text"):
+                    parts.append(block.text)
+                else:
+                    parts.append(str(block))
+            return "\n".join(parts) or "(no output)"
 
     def _normalize_schema(self, schema):
         """将 MCP schema 转换为 OpenAI 兼容格式"""
@@ -181,6 +175,7 @@ class MCPResourceWrapper(_MCPWrapperBase):
             "required": [],
         }
         self._resource_timeout = resource_timeout
+        self._name = _sanitize_name(f"mcp_{server_name}_{resource_def.name}")
 
     @property
     def name(self) -> str:
@@ -201,29 +196,28 @@ class MCPResourceWrapper(_MCPWrapperBase):
     async def execute(self, **kwargs: Any) -> str:
         from mcp import types
 
-        while True:
-            try:
-                result = await asyncio.wait_for(
-                    self._session.read_resource(self._uri),
-                    timeout=self._resource_timeout,
-                )
-            except asyncio.TimeoutError:
-                logger.warning(
-                    "MCP resource '{}' timed out after {}s",
-                    self._name,
-                    self._resource_timeout,
-                )
-                return f"(MCP resource read timed out after {self._resource_timeout}s)"
-            else:
-                parts: list[str] = []
-                for block in result.contents:
-                    if isinstance(block, types.TextResourceContents):
-                        parts.append(block.text)
-                    elif isinstance(block, types.BlobResourceContents):
-                        parts.append(f"[Binary resource: {len(block.blob)} bytes]")
-                    else:
-                        parts.append(str(block))
-                return "\n".join(parts) or "(no output)"
+        try:
+            result = await asyncio.wait_for(
+                self._session.read_resource(self._uri),
+                timeout=self._resource_timeout,
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                "MCP resource '{}' timed out after {}s",
+                self._name,
+                self._resource_timeout,
+            )
+            return f"(MCP resource read timed out after {self._resource_timeout}s)"
+        else:
+            parts: list[str] = []
+            for block in result.contents:
+                if isinstance(block, types.TextResourceContents):
+                    parts.append(block.text)
+                elif isinstance(block, types.BlobResourceContents):
+                    parts.append(f"[Binary resource: {len(block.blob)} bytes]")
+                else:
+                    parts.append(str(block))
+            return "\n".join(parts) or "(no output)"
 
 
 class MCPPromptWrapper(_MCPWrapperBase):
@@ -234,7 +228,11 @@ class MCPPromptWrapper(_MCPWrapperBase):
         self._set_mcp_connection(session, server_name)
         self._prompt_name = prompt_def.name
         self._name = f"mcp_{server_name}_prompt_{prompt_def.name}"
-        # desc = prompt_def.description or prompt_def.name
+        desc = prompt_def.description or prompt_def.name
+        self._description = (
+            f"[MCP Prompt] {desc}\n"
+            "Returns a filled prompt template that can be used as a workflow guide."
+        )
         self._prompt_timeout = prompt_timeout
 
         properties: dict[str, Any] = {}
@@ -252,32 +250,29 @@ class MCPPromptWrapper(_MCPWrapperBase):
             "required": required,
         }
 
-        @property
-        def name(self) -> str:
-            return self._name
+    @property
+    def name(self) -> str:
+        return self._name
 
-        @property
-        def description(self) -> str:
-            return self._description
+    @property
+    def description(self) -> str:
+        return self._description
 
-        @property
-        def parameters(self) -> dict[str, Any]:
-            return self._parameters
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return self._parameters
 
-        @property
-        def read_only(self) -> bool:
-            return True
+    @property
+    def read_only(self) -> bool:
+        return True
 
     async def execute(self, **kwargs: Any) -> str:
 
         logger.debug("MCP tool '{}' calling with args: {}", self._name, kwargs)
         try:
             result = await asyncio.wait_for(
-                self._session.call_tool(
-                    self._original_name,
-                    arguments=kwargs,
-                    timeout=self._tool_timeout,
-                )
+                self._session.get_prompt(self._prompt_name, arguments=kwargs),
+                timeout=self._prompt_timeout,
             )
             logger.debug(
                 "MCP tool '{}' result type: {}, content: {}",
@@ -297,7 +292,7 @@ class MCPPromptWrapper(_MCPWrapperBase):
             logger.error(
                 "MCP tool '{}' failed: {} - {}", self._name, type(e).__name__, e
             )
-            return f"Error: MCP tool '{self._original_name}' failed: {e}"
+            return f"Error: MCP tool '{self._prompt_name}' failed: {e}"
 
 
 async def connect_missing_servers(state: Any, registry: ToolRegistry) -> None:

@@ -90,6 +90,10 @@ class AgentLoop:
                 )
             )
 
+    async def _dispatch(self, msg: InboundMessage) -> None:
+        """Process a message: per-session serial, cross-session concurrent."""
+        pass
+
     def stop(self) -> None:
         self._running = False
         logger.info("Agent loop stopping")
@@ -178,7 +182,7 @@ class AgentLoop:
         registered = loader.load(ctx, self.tool_registry)
 
         # MyTool needs runtime state reference -- manual registration
-        self.tool_registry.register(MyTool())
+        # self.tool_registry.register(MyTool())
         logger.debug("AgentLoop: registered MyTool manually")
 
         logger.info(
