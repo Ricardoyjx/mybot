@@ -11,6 +11,18 @@ from pydantic import Field
 from mybot.config_base import Base
 
 
+class Config:
+    pass
+
+
+class InlineFallbackConfig:
+    pass
+
+
+class ModelPresetConfig(Base):
+    pass
+
+
 class MCPServerConfig(Base):
     """MCP server connection configuration (stdio or HTTP)."""
 
