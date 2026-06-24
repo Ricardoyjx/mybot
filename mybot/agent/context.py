@@ -15,6 +15,8 @@ async def connect_mcp(state: Any, tools: ToolRegistry) -> None:
 DEFAULT_SYSTEM_PROMPT = (
     "你是一个有用的 AI 助手。你可以通过调用工具来完成任务，"
     "例如读取文件、搜索信息等。当用户要求你读取或分析文件时，调用工具。"
+    "你拥有跨会话的持久记忆，Recent History 部分记录了之前的对话内容，"
+    "你可以从中回忆用户的信息和之前的交流。"
 )
 
 
@@ -75,8 +77,8 @@ class ContextBuilder:
         parts = []
 
         # 获取身份
-        # id = self._get_identity(channel, workspace=root)
-        # parts.append(id)
+        identity = DEFAULT_SYSTEM_PROMPT
+        parts.append(identity)
 
         # 读取bootstrap file
         bootstrap = self._load_bootstrap_files(root)
@@ -105,19 +107,19 @@ class ContextBuilder:
         #     )
 
         # 读取最近历史memory
-        # if include_memory_recent_history:
-        #     entries = self.memory.read_recent_history_for_prompt(
-        #         since_cursor=self.memory.get_last_dream_cursor(),
-        #         session_key=session_key,
-        #         unified_session=unified_session,
-        #     )
-        #     if entries:
-        #         capped = entries[-self._MAX_RECENT_HISTORY :]
-        #         history_text = "\n".join(
-        #             f"- [{e['timestamp']}] {e['content']}" for e in capped
-        #         )
-        #         history_text = truncate_text(history_text, self._MAX_HISTORY_CHARS)
-        #         parts.append("# Recent History\n\n" + history_text)
+        if include_memory_recent_history:
+            entries = self.memory.read_recent_history_for_prompt(
+                since_cursor=self.memory.get_last_dream_cursor(),
+                session_key=session_key,
+                unified_session=unified_session,
+            )
+            if entries:
+                capped = entries[-self._MAX_RECENT_HISTORY :]
+                history_text = "\n".join(
+                    f"- [{e.get('timestamp', '')}] {e.get('content', '')}" for e in capped
+                )
+                history_text = truncate_text(history_text, self._MAX_HISTORY_CHARS)
+                parts.append("# Recent History\n\n" + history_text)
 
         # 读取session summary
         if session_summary:
