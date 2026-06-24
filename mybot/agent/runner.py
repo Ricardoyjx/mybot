@@ -39,8 +39,8 @@ class AgentRunner:
 
         # init message queue
         messages = self.context_builder.build_messages(
-            user_message=user_message,
-            session_id=session_id,
+            current_message=user_message,
+            session_key=session_id,
             history=history,
         )
 

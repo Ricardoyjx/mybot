@@ -23,19 +23,19 @@ class MemoryStore:
         self.soul_file = workspace / "SOUL.md"
         self.user_file = workspace / "USER.md"
 
-        self._git = GitStore(
-            workspace,
-            tracked_files=[
-                "SOUL.md",
-                "USER.md",
-                "memory/MEMORY.md",
-                "memory/.dream_cursor",
-            ],
-        )
+        # self._git = GitStore(
+        #     workspace,
+        #     tracked_files=[
+        #         "SOUL.md",
+        #         "USER.md",
+        #         "memory/MEMORY.md",
+        #         "memory/.dream_cursor",
+        #     ],
+        # )
 
-    @property
-    def git(self) -> GitStore:
-        return self._git
+    # @property
+    # def git(self) -> GitStore:
+    #     return self._git
 
     # -- generic helpers -----------------------------------------------------
     @staticmethod
@@ -116,7 +116,8 @@ class MemoryStore:
                         try:
                             entries.append(json.loads(line))
                         except json.JSONDecodeError:
-                            return
+                            continue
+        return
 
     def _write_entries(self, entries: list[dict[str, Any]]) -> None:
         """Overwrite history.jsonl with the given entries (atomic write)."""

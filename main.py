@@ -63,35 +63,38 @@ async def cli_loop(agent: AgentLoop) -> None:
 
     loop = asyncio.get_running_loop()
 
-    while True:
-        try:
-            user_input = await loop.run_in_executor(None, sys.stdin.readline)
-        except (EOFError, KeyboardInterrupt):
-            print("\n再见!", flush=True)
-            break
+    try:
+        while True:
+            try:
+                user_input = await loop.run_in_executor(None, sys.stdin.readline)
+            except (EOFError, KeyboardInterrupt):
+                print("\n再见!", flush=True)
+                break
 
-        if not user_input:
-            break
+            if not user_input:
+                break
 
-        text = user_input.strip()
-        if not text:
-            continue
-        if text in ("/quit", "/exit", "/q"):
-            print("再见!", flush=True)
-            break
+            text = user_input.strip()
+            if not text:
+                continue
+            if text in ("/quit", "/exit", "/q"):
+                print("再见!", flush=True)
+                break
 
-        try:
-            response = await agent.process_direct(
-                content=text,
-                session_key=SESSION_KEY,
-            )
-            if response and response.content:
-                print(f"bot> {response.content}", flush=True)
-            else:
-                print("bot> (无响应)", flush=True)
-        except Exception as e:
-            logger.debug("process_direct 异常: {}", e)
-            print(f"bot> [错误] {e}", flush=True)
+            try:
+                response = await agent.process_direct(
+                    content=text,
+                    session_key=SESSION_KEY,
+                )
+                if response and response.content:
+                    print(f"bot> {response.content}", flush=True)
+                else:
+                    print("bot> (无响应)", flush=True)
+            except Exception as e:
+                logger.debug("process_direct 异常: {}", e)
+                print(f"bot> [错误] {e}", flush=True)
+    finally:
+        await agent.shutdown()
 
 
 async def bus_loop(agent: AgentLoop) -> None:
@@ -115,9 +118,7 @@ async def bus_loop(agent: AgentLoop) -> None:
 
 def main() -> None:
     logger.remove()
-    logger.add(
-        sys.stderr, level="DEBUG", format="{time:HH:mm:ss} | {level} | {message}"
-    )
+    logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {level} | {message}")
 
     agent = create_agent()
 

@@ -1,9 +1,6 @@
 import asyncio
-
-
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
-from mybot.agent.tools.self import MyTool
 from loguru import logger
 from mybot.bus.queue import MessageBus
 from mybot.bus.events import InboundMessage, OutboundMessage
@@ -16,6 +13,7 @@ from mybot.agent.memory import MemoryStore
 from mybot.agent.hook import AgentHook
 from mybot.providers.base import LLMProvider
 import mybot.agent.context as agent_context
+from pathlib import Path
 
 # from mybot.agent import context as agent_context
 
@@ -98,6 +96,17 @@ class AgentLoop:
         self._running = False
         logger.info("Agent loop stopping")
 
+    async def shutdown(self) -> None:
+        """Clean up MCP connections and other resources."""
+        for name, stack in list(self._mcp_stacks.items()):
+            try:
+                await stack.aclose()
+            except Exception:
+                pass
+        self._mcp_stacks.clear()
+        self._mcp_connected = False
+        logger.info("Agent loop shut down")
+
     async def process_direct(
         self,
         content: str,
@@ -138,8 +147,12 @@ class AgentLoop:
         runner = AgentRunner(
             provider=self.provider,
             tool_registry=self.tool_registry,
-            context_builder=ContextBuilder(),
-            memory_store=MemoryStore(),
+            context_builder=ContextBuilder(
+                workspace=self.session.workspace if self.session else Path.cwd()
+            ),
+            memory_store=MemoryStore(
+                workspace=self.session.workspace if self.session else Path.cwd()
+            ),
         )
         result = await runner.run(
             user_message=msg.content,
