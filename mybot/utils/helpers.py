@@ -30,3 +30,10 @@ def detect_image_mime(data: bytes) -> str | None:
     if data[:2] in (b"II", b"MM"):
         return "image/tiff"
     return None
+
+
+def truncate_text(text: str, max_chars: int) -> str:
+    """Truncate text with a stable suffix."""
+    if max_chars <= 0 or len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "\n... (truncated)"
