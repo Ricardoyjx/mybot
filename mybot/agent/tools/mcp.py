@@ -152,15 +152,11 @@ class MCPToolWrapper(_MCPWrapperBase):
                     parts.append(str(block))
             return "\n".join(parts) or "(no output)"
 
-    def _normalize_schema(self, schema):
-        """将 MCP schema 转换为 OpenAI 兼容格式"""
-        return self._normalize_schema
-
 
 class MCPResourceWrapper(_MCPWrapperBase):
     """Wraps an MCP resource URI as a read-only nanobot Tool."""
 
-    __plugin_discoverable = False
+    _plugin_discoverable = False
 
     def __init__(
         self, session, server_name: str, resource_def, resource_timeout: int = 30
