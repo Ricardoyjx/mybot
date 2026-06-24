@@ -27,3 +27,19 @@ class MCPServerConfig(Base):
     enabled_tools: list[str] = Field(
         default_factory=lambda: ["*"]
     )  # Only register these tools; accepts raw MCP names or wrapped mcp_<server>_<tool> names; ["*"] = all tools; [] = no tools
+
+
+class ProviderConfig(Base):
+    pass
+
+
+class ToolsConfig(Base):
+    pass
+
+
+class ChannelConfig(Base):
+    pass
+
+
+class ModelPresetConfig:
+    pass
