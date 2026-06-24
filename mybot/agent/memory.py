@@ -13,9 +13,9 @@ from mybot.utils.gitstore import GitStore
 
 class MemoryStore:
 
-    def __init__(self, workspace: Path, max_history_entires: int = 1000):
+    def __init__(self, workspace: Path, max_history_entries: int = 1000):
         self.workspace = workspace
-        self.max_history_entires = max_history_entires
+        self.max_history_entries = max_history_entries
         self.memory_dir = ensure_dir(workspace / "memory")
         self.memory_file = self.memory_dir / "MEMORY.md"
         self.history_file = self.memory_dir / "history.jsonl"
@@ -54,14 +54,14 @@ class MemoryStore:
 
     # -- SOUL.md -------------------------------------------------------------
     def read_soul(self) -> str:
-        return self.read_soul(self.soul_file)
+        return self.read_file(self.soul_file)
 
     def write_soul(self, content: str) -> None:
         self.soul_file.write_text(content, encoding="utf-8")
 
     # -- USER.md -------------------------------------------------------------
     def read_user(self) -> str:
-        return self.read_user(self.soul_file)
+        return self.read_file(self.user_file)
 
     def write_user(self, content: str) -> None:
         self.user_file.write_text(content, encoding="utf-8")
@@ -76,7 +76,7 @@ class MemoryStore:
 
     def append_history(
         self,
-        entry: int,
+        entry: str,
         *,
         max_chars: int | None = None,
         session_key: str | None = None,
