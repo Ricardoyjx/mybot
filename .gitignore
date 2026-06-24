@@ -54,10 +54,5 @@ memory.json
 
 # sessions files
 sessions/*
-test.docx
 sessions/cli_default.jsonl
-tools_tracing.md
-codex-proxy-guide.docx
-memory/.cursor
-memory/history.jsonl
-memory/MEMORY.md
+memory/*
