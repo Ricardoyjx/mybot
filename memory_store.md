@@ -6,17 +6,17 @@ Memory 系统由三层组成：
 
 ```text
 ┌─────────────────────────────────────────────┐
-│            Context Builder                   │  ← 注入到 LLM 系统提示
-│  (context.py)                                │
+│            Context Builder                  │  ← 注入到 LLM 系统提示
+│  (context.py)                               │
 ├─────────────────────────────────────────────┤
-│         Consolidator + AutoCompact           │  ← 自动压缩 & Dream
-│  (memory.py)        (autocompact.py)         │
+│         Consolidator + AutoCompact          │  ← 自动压缩 & Dream
+│  (memory.py)        (autocompact.py)        │
 ├─────────────────────────────────────────────┤
-│            MemoryStore                       │  ← 纯文件 I/O 层
-│  (memory.py)                                 │
+│            MemoryStore                      │  ← 纯文件 I/O 层
+│  (memory.py)                                │
 ├─────────────────────────────────────────────┤
-│            GitStore                          │  ← Git 版本控制
-│  (utils/gitstore.py)                         │
+│            GitStore                         │  ← Git 版本控制
+│  (utils/gitstore.py)                        │
 └─────────────────────────────────────────────┘
 ```
 
