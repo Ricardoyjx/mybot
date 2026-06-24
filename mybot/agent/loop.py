@@ -168,6 +168,15 @@ class AgentLoop:
         if self.session is not None:
             self.session.save(session, fsync=True)
 
+        # 保存到跨会话记忆
+        memory = MemoryStore(
+            workspace=self.session.workspace if self.session else Path.cwd()
+        )
+        memory.append_history(
+            f"User: {msg.content}\nAssistant: {result}",
+            session_key=session_key,
+        )
+
         return OutboundMessage(
             channel=msg.channel,
             chat_id=msg.chat_id,
