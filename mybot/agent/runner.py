@@ -128,7 +128,7 @@ class AgentRunner:
 
         if tool_name == "save_memory":
             content = tool_args.get("content", "")
-            await self.memory_store.save_memory(content)
+            await self.memory_store.write_memory(content)
             return "Memory saved successfully."
 
         # normal tool calls
