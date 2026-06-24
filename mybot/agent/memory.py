@@ -72,6 +72,17 @@ class MemoryStore:
         long_term = self.read_memory()
         return f"## Long-term Memory\n{long_term}" if long_term else ""
 
+    def get_last_dream_cursor(self) -> int:
+        cursor_file = self.memory_dir / ".dream_cursor"
+        try:
+            return int(cursor_file.read_text(encoding="utf-8").strip())
+        except (FileNotFoundError, ValueError):
+            return 0
+
+    def set_last_dream_cursor(self, cursor: int) -> None:
+        cursor_file = self.memory_dir / ".dream_cursor"
+        cursor_file.write_text(str(cursor), encoding="utf-8")
+
     # -- history.jsonl — append-only, JSONL format ---------------------------
 
     def append_history(
@@ -81,17 +92,37 @@ class MemoryStore:
         max_chars: int | None = None,
         session_key: str | None = None,
     ) -> int:
+        max_chars = max_chars or 64_000
+        content = entry[:max_chars]
+        ts = __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M")
 
-        pass
+        cursor_file = self.memory_dir / ".cursor"
+        try:
+            cursor = int(cursor_file.read_text(encoding="utf-8").strip()) + 1
+        except (FileNotFoundError, ValueError):
+            cursor = 1
+
+        record = {"cursor": cursor, "timestamp": ts, "content": content}
+        if session_key:
+            record["session_key"] = session_key
+
+        with open(self.history_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
+
+        cursor_file.write_text(str(cursor), encoding="utf-8")
+        return cursor
 
     def read_recent_history_for_prompt(
         self,
         since_cursor: int,
         *,
         session_key: str | None = None,
-        unified_session: tool = False,
+        unified_session: bool = False,
     ) -> list[dict[str, Any]]:
-        pass
+        entries = self._read_entries() or []
+        return [e for e in entries if e.get("cursor", 0) > since_cursor]
 
     def compact_history(self) -> None:
         if self.max_history_entries <= 0:
@@ -117,7 +148,7 @@ class MemoryStore:
                             entries.append(json.loads(line))
                         except json.JSONDecodeError:
                             continue
-        return
+        return entries
 
     def _write_entries(self, entries: list[dict[str, Any]]) -> None:
         """Overwrite history.jsonl with the given entries (atomic write)."""
