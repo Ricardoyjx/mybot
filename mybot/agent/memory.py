@@ -2,13 +2,13 @@
 # MemoryStore — pure file I/O layer
 # ---------------------------------------------------------------------------
 from contextlib import suppress
-from json import tool
 from pathlib import Path
 from typing import Any
 import json
 import os
 from mybot.utils.helpers import ensure_dir
-from mybot.utils.gitstore import GitStore
+
+# from mybot.utils.gitstore import GitStore
 
 
 class MemoryStore:
