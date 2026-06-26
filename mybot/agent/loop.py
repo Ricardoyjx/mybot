@@ -7,7 +7,7 @@ from mybot.agent.cron_turns import CronTurnCoordinator
 from mybot.bus.queue import MessageBus
 from mybot.bus.events import InboundMessage, OutboundMessage
 from mybot.agent.tools.registry import ToolRegistry
-from mybot.config.schema import MCPServerConfig
+from mybot.config.schema import MCPServerConfig, ModelPresetConfig
 from mybot.session.manager import Session, SessionManager
 from mybot.agent.runner import AgentRunner
 from mybot.agent.context import ContextBuilder
@@ -20,7 +20,7 @@ import mybot.agent.context as agent_context
 from mybot.agent import model_presets as preset_helpers
 from pathlib import Path
 from mybot.config.schema import ProviderConfig, ToolsConfig
-from typing import Callable, ModelPresetConfig
+from typing import Callable
 from mybot.bus.runtime_events import (
     RuntimeEventBus,
     RuntimeEventPublisher,
@@ -155,7 +155,13 @@ class AgentLoop:
                 self._pending_queues[session_key] = pending
                 try:
                     on_stream = on_stream_end = None
-                    if msg.metadata.get("_wants_stream"):
+                    # 默认启用流式输出，除非 metadata 显式设置 _wants_stream=False
+                    wants_stream = (
+                        msg.metadata.get("_wants_stream", True)
+                        if msg.metadata
+                        else True
+                    )
+                    if wants_stream:
                         stream_base_id = f"{msg.session_key}:{time.time_ns()}"
                         stream_segment = 0
 
@@ -183,7 +189,7 @@ class AgentLoop:
                             meta = dict(msg.metadata or {})
                             meta["_stream_end"] = True
                             meta["_resuming"] = resuming
-                            meta["_stream_id"] = _current_stream_id
+                            meta["_stream_id"] = _current_stream_id()
                             await self.bus.publish_outbound(
                                 OutboundMessage(
                                     channel=msg.channel,
@@ -343,7 +349,8 @@ class AgentLoop:
         session_key: str = "cli:direct",
         channel: str = "cli",
         chat_id: str = "direct",
-        # tools: ToolRegistry | None = None,
+        on_stream: Callable | None = None,
+        on_stream_end: Callable | None = None,
     ) -> OutboundMessage | None:
         """Process a message directly and return the outbound payload."""
         if not self.tool_registry._tools:
@@ -359,7 +366,8 @@ class AgentLoop:
         return await self._process_message(
             msg,
             session_key=session_key,
-            # tools=tools,
+            on_stream=on_stream,
+            on_stream_end=on_stream_end,
         )
 
     async def _process_message(
@@ -368,7 +376,7 @@ class AgentLoop:
         *,
         session_key: str = "default",
         on_stream: Callable | None = None,
-        on_stream_end: asyncio.Queue | None = None,
+        on_stream_end: Callable | None = None,
         pending_queue: asyncio.Queue | None = None,
         # tools: Any | None = None,
     ) -> OutboundMessage | None:
