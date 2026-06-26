@@ -51,6 +51,11 @@ def create_agent() -> AgentLoop:
             "filesystem": MCPServerConfig(
                 command="npx",
                 args=["-y", "@modelcontextprotocol/server-filesystem", "/home/ricardo"],
+                enabled_tools=[
+                    "list_directory",
+                    "directory_tree",
+                    "list_allowed_directories",
+                ],
             )
         },
     )
@@ -141,6 +146,7 @@ async def web_loop(agent: AgentLoop, host: str = "0.0.0.0", port: int = 8080) ->
     from mybot.api.server import WebServer
 
     server = WebServer(agent, host=host, port=port)
+    agent._register_default_tools()
     await agent._connect_mcp()
     await server.start()
 
