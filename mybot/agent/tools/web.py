@@ -6,7 +6,12 @@ from typing import Any, Callable
 from xmlrpc.client import Boolean
 
 from mybot.agent.tools.base import Tool, tool_parameters
-from mybot.agent.tools.schema import BooleanSchema, IntegerSchema, StringSchema
+from mybot.agent.tools.schema import (
+    BooleanSchema,
+    IntegerSchema,
+    StringSchema,
+    tool_parameters_schema,
+)
 from mybot.config_base import Base
 from loguru import logger
 
@@ -58,12 +63,22 @@ def _format_results(query: str, items: list[dict[str, Any]], n: int) -> str:
 
 
 @tool_parameters(
-    tool_parameters(
-        query=StringSchema("asd ", "timeout"),
-        count=IntegerSchema(),
-        timeRange=StringSchema(),
-        authLevel=IntegerSchema(),
-        queryRewrite=BooleanSchema(),
+    tool_parameters_schema(
+        query=StringSchema("Search query"),
+        count=IntegerSchema(1, description="Results (1-10)", minimum=1, maximum=10),
+        timeRange=StringSchema(
+            "Optional time filter for providers that support it: "
+            "OneDay, OneWeek, OneMonth, OneYear, or YYYY-MM-DD..YYYY-MM-DD",
+        ),
+        authLevel=IntegerSchema(
+            0,
+            description="Optional authority filter for providers that support it: 0=all, 1=authoritative",
+            minimum=0,
+            maximum=1,
+        ),
+        queryRewrite=BooleanSchema(
+            description="Optional provider-side query rewrite for conversational or ambiguous searches",
+        ),
         required=["query"],
     )
 )
@@ -74,10 +89,9 @@ class WebSearchTool(Tool):
 
     name = "web_search"
     description = (
-        "Search the web. Returns titles, URLs, and snippets. "
-        "count defaults to 5 (max 10). "
-        "Some providers support timeRange, authLevel, and queryRewrite. "
-        "Use web_fetch to read a specific page in full."
+        "搜索互联网获取实时信息。适用于查询天气、新闻、最新资讯等任何需要联网获取的信息。"
+        "返回标题、URL 和摘要。count 默认 5（最大 10）。"
+        "当用户询问天气、新闻、实时数据等联网问题时必须使用此工具。"
     )
 
     config_key = "web"
@@ -88,16 +102,11 @@ class WebSearchTool(Tool):
 
     @classmethod
     def create(cls, ctx: Any) -> Tool:
-        config_loader = None
+        # config_loader = None
         # if ctx.provider_snapshot_loader is not None:
         # def config_loader():
         # from mybot.config.loader import load_config , resolve_config_env_vars
-        return cls(
-            config=ctx.config.web.search,
-            proxy=ctx.config.web.proxy,
-            user_agent=ctx.config.web.user_agent,
-            config_loader=config_loader,
-        )
+        return cls()
 
     def __init__(
         self,
@@ -123,7 +132,7 @@ class WebSearchTool(Tool):
         self,
         query: str,
         count: int | None = None,
-        time_rage: str | None = None,
+        time_range: str | None = None,
         auth_level: int | None = None,
         query_rewrite: bool | None = None,
         **kwargs: Any,
@@ -131,24 +140,34 @@ class WebSearchTool(Tool):
         self._refresh_config()
         provider = "duckduckgo"
         n = min(max(count or self.config.max_results, 1), 10)
+        logger.info("WebSearch: query='{}', provider={}, count={}", query, provider, n)
 
         if provider == "duckduckgo":
             return await self._search_duckduckgo(query, n)
         else:
+            logger.error("WebSearch: unknown provider '{}'", provider)
             return f"Error unknown search provides '{provider}'"
 
     async def _search_duckduckgo(self, query: str, n: int) -> str:
         try:
-            # Note: duckduckgo_search is synchronous and does its own requests
-            # We run it in a thread to avoid blocking the loop
             from ddgs import DDGS
 
-            ddgs = DDGS(timeout=10)
+            timeout = min(self.config.timeout, 10)
+            logger.info(
+                "WebSearch: starting DuckDuckGo search, timeout={}s",
+                timeout,
+            )
+
+            def _sync_search():
+                with DDGS() as ddgs:
+                    return list(ddgs.text(query, max_results=n))
+
             raw = await asyncio.wait_for(
-                asyncio.to_thread(ddgs.text, query, max_results=n),
-                timeout=self.config.timeout,
+                asyncio.to_thread(_sync_search),
+                timeout=timeout,
             )
             if not raw:
+                logger.warning("WebSearch: no results for '{}'", query)
                 return f"No results for: {query}"
             items = [
                 {
@@ -158,7 +177,15 @@ class WebSearchTool(Tool):
                 }
                 for r in raw
             ]
+            logger.info("WebSearch: got {} results for '{}'", len(items), query)
             return _format_results(query, items, n)
+        except asyncio.TimeoutError:
+            logger.warning(
+                "WebSearch: DuckDuckGo timed out after {}s for '{}'",
+                timeout,
+                query,
+            )
+            return f"Error: Search timed out ({timeout}s). Try a more specific query."
         except Exception as e:
-            logger.warning("DuckDuckGo search failed: {}", e)
-            return f"Error: DuckDuckGo search failed ({e})"
+            logger.warning("WebSearch: DuckDuckGo search failed: {}", e)
+            return f"Error: Search failed ({type(e).__name__}: {e})"
