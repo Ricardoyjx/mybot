@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from pathlib import Path
@@ -31,7 +32,9 @@ class WebServer:
         self.agent = agent
         self.host = host
         self.port = port
-        self.webui_dir = webui_dir or Path(__file__).resolve().parent.parent.parent / "webui"
+        self.webui_dir = (
+            webui_dir or Path(__file__).resolve().parent.parent.parent / "webui"
+        )
         self._server: uvicorn.Server | None = None
 
         self.app = Starlette(
@@ -39,7 +42,9 @@ class WebServer:
                 Route("/", self._handle_index),
                 Route("/health", self._handle_health),
                 WebSocketRoute("/ws/chat", self._handle_ws),
-                Mount("/static", StaticFiles(directory=str(self.webui_dir)), name="static"),
+                Mount(
+                    "/static", StaticFiles(directory=str(self.webui_dir)), name="static"
+                ),
             ],
         )
 
@@ -48,7 +53,9 @@ class WebServer:
     async def _handle_index(self, request) -> FileResponse:
         index = self.webui_dir / "index.html"
         if not index.exists():
-            return JSONResponse({"error": "webui/index.html not found"}, status_code=404)
+            return JSONResponse(
+                {"error": "webui/index.html not found"}, status_code=404
+            )
         return FileResponse(index)
 
     async def _handle_health(self, request) -> JSONResponse:
@@ -76,6 +83,8 @@ class WebServer:
                     await self._process(ws, content, session_id)
 
         except WebSocketDisconnect:
+            pass
+        except asyncio.CancelledError:
             pass
         except Exception as e:
             logger.exception("WS error for {}: {}", session_id, e)
@@ -139,6 +148,7 @@ class WebServer:
         self._server = uvicorn.Server(config)
         # 在后台 task 中运行，不阻塞调用方
         import asyncio
+
         self._task = asyncio.create_task(self._server.serve())
         logger.info("Web server started on http://{}:{}", self.host, self.port)
 
