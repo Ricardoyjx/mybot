@@ -81,12 +81,32 @@ async def cli_loop(agent: AgentLoop) -> None:
                 print("再见!", flush=True)
                 break
 
+            # 流式输出状态
+            streaming_started = False
+
+            async def on_stream(delta: str) -> None:
+                nonlocal streaming_started
+                if not streaming_started:
+                    sys.stdout.write("bot> ")
+                    streaming_started = True
+                sys.stdout.write(delta)
+                sys.stdout.flush()
+
+            async def on_stream_end() -> None:
+                pass
+
             try:
                 response = await agent.process_direct(
                     content=text,
                     session_key=SESSION_KEY,
+                    on_stream=on_stream,
+                    on_stream_end=on_stream_end,
                 )
-                if response and response.content:
+                # 流式已输出过，补个换行
+                if streaming_started:
+                    print(flush=True)
+                # 如果没有流式输出但有响应，打印完整内容
+                elif response and response.content:
                     print(f"bot> {response.content}", flush=True)
                 else:
                     print("bot> (无响应)", flush=True)
@@ -116,14 +136,36 @@ async def bus_loop(agent: AgentLoop) -> None:
     )
 
 
+async def web_loop(agent: AgentLoop, host: str = "0.0.0.0", port: int = 8080) -> None:
+    """Web 模式：启动 HTTP + WebSocket 服务。"""
+    from mybot.api.server import WebServer
+
+    server = WebServer(agent, host=host, port=port)
+    await agent._connect_mcp()
+    await server.start()
+
+    try:
+        await asyncio.Event().wait()  # 永久运行
+    finally:
+        await agent.shutdown()
+
+
 def main() -> None:
     logger.remove()
     logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {level} | {message}")
 
+    args = sys.argv[1:]
     agent = create_agent()
 
     try:
-        asyncio.run(cli_loop(agent))
+        if "--web" in args:
+            port = 8080
+            for i, arg in enumerate(args):
+                if arg == "--port" and i + 1 < len(args):
+                    port = int(args[i + 1])
+            asyncio.run(web_loop(agent, port=port))
+        else:
+            asyncio.run(cli_loop(agent))
     except KeyboardInterrupt:
         pass
 
