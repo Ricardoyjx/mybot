@@ -17,7 +17,7 @@ class AgentRunner:
         tool_registry: ToolRegistry,
         context_builder: ContextBuilder,
         memory_store: MemoryStore,
-        max_iteration: int = 40,
+        max_iteration: int = 10,
         is_subagent: bool = False,
     ):
         self.provider = provider
