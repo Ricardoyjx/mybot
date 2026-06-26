@@ -1,3 +1,5 @@
+from typing import Any, Awaitable, Callable
+
 from mybot.providers.base import LLMProvider
 from mybot.agent.tools.registry import ToolRegistry
 from mybot.agent.context import ContextBuilder
@@ -34,19 +36,21 @@ class AgentRunner:
         session_id: str,
         hook: AgentHook,
         history: list[dict[str, str]] | None = None,
+        on_stream: Callable[[str], Awaitable[None]] | None = None,
+        on_stream_end: Callable[[], Awaitable[None]] | None = None,
     ) -> str:
-        """完整的ReAct 循环"""
+        """完整的 ReAct 循环，支持流式输出。"""
 
-        # init message queue
+        # 构建上下文消息
         messages = self.context_builder.build_messages(
             current_message=user_message,
             session_key=session_id,
             history=history,
         )
 
-        # get reachable tools
+        # 获取可用工具 schema
         tools = self.tool_registry.get_tool_schemas()
-        logger.debug("Tools sent to LLM: {}", tools)  # ← 加这行
+        logger.debug("Tools sent to LLM: {}", tools)
 
         final_response = ""
         tool_calls_history = []
@@ -59,16 +63,18 @@ class AgentRunner:
                 session_id=session_id,
             )
 
-            # lifecycle hook: before iteration
-            # await self._before_iteration(iteration, messages)  # todo impl
+            # 生命周期钩子：迭代前
             await hook._before_iteration(context)
-            # call LLM
-            response = await self.provider.chat_with_retry(  # todo impl
+
+            # 每轮都传流式回调，provider 内部决定是否 stream
+            response = await self.provider.chat_with_retry(
                 messages=messages,
                 tools=tools if tools else None,
+                on_stream=on_stream,
+                on_stream_end=on_stream_end,
             )
 
-            # check if need to call tools
+            # 检查是否需要调用工具
             if not response.tool_calls:
                 final_response = response.content
                 break
@@ -85,7 +91,8 @@ class AgentRunner:
                         },
                     }
                 )
-            # need to call tools
+
+            # 将 assistant 消息（含 tool_calls）加入上下文
             messages.append(
                 {
                     "role": "assistant",
@@ -93,10 +100,11 @@ class AgentRunner:
                     "tool_calls": serializable_calls,
                 }
             )
-            # lifecycle hook before execute tools
-            # await self._before_execute_tools(response.tool_calls)
+
+            # 生命周期钩子：执行工具前
             await hook.before_execute_tools()
-            # call tools one by one
+
+            # 逐个执行工具
             for tool_call in response.tool_calls:
                 result = await self._execute_tool(tool_call)
 
@@ -113,8 +121,11 @@ class AgentRunner:
 
                 tool_calls_history.append(tool_call)
 
-            # lifecycle hook after iteration
+            # 生命周期钩子：迭代后
             await hook.after_iteration(iteration, messages)
+
+
+
         else:
             final_response = ""
 
@@ -131,9 +142,9 @@ class AgentRunner:
             await self.memory_store.write_memory(content)
             return "Memory saved successfully."
 
-        # normal tool calls
+        # 普通工具调用
         try:
             result = await self.tool_registry.execute(tool_name, tool_args)
             return str(result)
         except Exception as e:
-            return f"Error executing {tool_name}:{str(e)}"
+            return f"Error executing {tool_name}: {str(e)}"
