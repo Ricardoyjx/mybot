@@ -88,6 +88,7 @@ class AgentLoop:
         self._concurrency_gate: asyncio.Semaphore | None = asyncio.Semaphore(3)
         self._session_locks: dict[str, asyncio.Lock] = {}
         self._pending_queues: dict[str, asyncio.Queue] = {}
+        self._extra_hooks: list[AgentHook] = hooks or []
         self._cron_turns = CronTurnCoordinator(
             publish_inbound=self.bus.publish_inbound,
             dispatch=self._dispatch,

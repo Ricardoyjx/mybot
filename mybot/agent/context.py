@@ -135,12 +135,10 @@ class ContextBuilder:
 
         # 读取session summary
         if session_summary:
-            parts.append("[Archived Context Summary]\n\n{session_summary}")
+            parts.append(f"[Archived Context Summary]\n\n{session_summary}")
         # 返回str结果
         return "\n\n---\n\n".join(parts)
 
-    def _merge_message_content():
-        pass
 
     def _load_bootstrap_files(self, workspace: Path | None = None) -> str:
         """Load all bootstrap files from workspace."""

@@ -66,4 +66,7 @@ class AgentHook:
 
 
 class SDKCaptureHook(AgentHook):
-    pass
+    def __init__(self) -> None:
+        super().__init__()
+        self.tools_used: list[str] = []
+        self.message: list[dict[str, Any]] = []
