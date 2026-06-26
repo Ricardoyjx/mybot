@@ -138,15 +138,9 @@ class WebSearchTool(Tool):
         **kwargs: Any,
     ) -> str:
         self._refresh_config()
-        provider = "duckduckgo"
         n = min(max(count or self.config.max_results, 1), 10)
-        logger.info("WebSearch: query='{}', provider={}, count={}", query, provider, n)
-
-        if provider == "duckduckgo":
-            return await self._search_duckduckgo(query, n)
-        else:
-            logger.error("WebSearch: unknown provider '{}'", provider)
-            return f"Error unknown search provides '{provider}'"
+        logger.info("WebSearch: query='{}', count={}", query, n)
+        return await self._search_bing(query, n)
 
     async def _search_duckduckgo(self, query: str, n: int) -> str:
         try:
@@ -189,3 +183,146 @@ class WebSearchTool(Tool):
         except Exception as e:
             logger.warning("WebSearch: DuckDuckGo search failed: {}", e)
             return f"Error: Search failed ({type(e).__name__}: {e})"
+
+    async def _search_bing(self, query: str, n: int) -> str:
+        """Fallback: scrape Bing search results via httpx."""
+        import httpx
+        from lxml import html as lxml_html
+
+        try:
+            logger.info("WebSearch: trying Bing fallback for '{}'", query)
+            async with httpx.AsyncClient(
+                timeout=10,
+                follow_redirects=True,
+                headers={"User-Agent": self.user_agent},
+            ) as client:
+                resp = await client.get(
+                    "https://cn.bing.com/search",
+                    params={"q": query, "count": str(n)},
+                )
+                resp.raise_for_status()
+
+            tree = lxml_html.fromstring(resp.text)
+            items = []
+            for li in tree.xpath('//li[@class="b_algo"]')[:n]:
+                title_parts = li.xpath('.//h2//text()')
+                title = " ".join(title_parts).strip()
+                href_list = li.xpath('.//h2/a/@href')
+                href = href_list[0] if href_list else ""
+                snippet_parts = li.xpath('.//p//text()')
+                snippet = " ".join(snippet_parts).strip()
+                if title:
+                    items.append({"title": title, "url": href, "content": snippet})
+
+            if not items:
+                logger.warning("WebSearch: Bing returned no parseable results for '{}'", query)
+                return f"No results for: {query}"
+
+            logger.info("WebSearch: Bing got {} results for '{}'", len(items), query)
+            return _format_results(query, items, n)
+        except Exception as e:
+            logger.warning("WebSearch: Bing fallback failed: {}", e)
+            return f"Error: All search providers failed ({type(e).__name__}: {e})"
+
+
+@tool_parameters(
+    tool_parameters_schema(
+        url=StringSchema("要读取的网页 URL"),
+        max_chars=IntegerSchema(
+            8000, description="最大返回字符数", minimum=1000, maximum=50000
+        ),
+        required=["url"],
+    )
+)
+class WebFetchTool(Tool):
+    """Fetch a web page and extract its text content."""
+
+    _scopes = {"core", "subagent"}
+    _plugin_discoverable = True
+
+    @property
+    def name(self) -> str:
+        return "web_fetch"
+
+    @property
+    def description(self) -> str:
+        return (
+            "抓取网页内容并提取纯文本。用于读取搜索结果中的具体页面。"
+            "传入 URL，返回页面的文本内容。"
+            "配合 web_search 使用：先搜索获取 URL，再用此工具读取页面详情。"
+        )
+
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {
+            "type": "object",
+            "properties": {
+                "url": {"type": "string", "description": "要读取的网页 URL"},
+                "max_chars": {
+                    "type": "integer",
+                    "description": "最大返回字符数",
+                    "default": 8000,
+                },
+            },
+            "required": ["url"],
+        }
+
+    @classmethod
+    def create(cls, ctx: Any) -> "WebFetchTool":
+        return cls()
+
+    async def execute(
+        self, url: str, max_chars: int = 8000, **kwargs: Any
+    ) -> str:
+        import httpx
+        from lxml import html as lxml_html
+
+        logger.info("WebFetch: fetching {}", url)
+        try:
+            async with httpx.AsyncClient(
+                timeout=15,
+                follow_redirects=True,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_7_2) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/131.0.0.0 Safari/537.36"
+                },
+            ) as client:
+                resp = await client.get(url)
+                resp.raise_for_status()
+
+            # Parse HTML and extract text
+            tree = lxml_html.fromstring(resp.text)
+
+            # Remove script and style elements
+            for tag in tree.xpath("//script | //style | //nav | //footer | //header"):
+                tag.getparent().remove(tag)
+
+            # Try to find the main content area
+            main = tree.xpath("//main | //article | //div[@class='content'] | //div[@id='content']")
+            if main:
+                text = main[0].text_content()
+            else:
+                text = tree.text_content()
+
+            # Clean up whitespace
+            text = re.sub(r"[ \t]+", " ", text)
+            text = re.sub(r"\n{3,}", "\n\n", text)
+            text = text.strip()
+
+            if len(text) > max_chars:
+                text = text[:max_chars] + "\n...(truncated)"
+
+            if not text:
+                logger.warning("WebFetch: empty content from {}", url)
+                return f"Error: Page returned empty content ({url})"
+
+            logger.info("WebFetch: got {} chars from {}", len(text), url)
+            return text
+
+        except httpx.TimeoutException:
+            logger.warning("WebFetch: timed out fetching {}", url)
+            return f"Error: Timed out fetching {url}"
+        except Exception as e:
+            logger.warning("WebFetch: failed to fetch {}: {}", url, e)
+            return f"Error: Failed to fetch {url} ({type(e).__name__}: {e})"
