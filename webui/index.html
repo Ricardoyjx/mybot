@@ -302,7 +302,16 @@ let ws = null;
 let currentBotBubble = null;
 let currentBotText = '';
 let reconnectTimer = null;
-const WS_URL = `ws://${location.host}/ws/chat`;
+// Persist session ID across page refreshes
+const SESSION_ID = (() => {
+  let id = localStorage.getItem('mybot_session_id');
+  if (!id) {
+    id = 'ws:' + crypto.randomUUID().slice(0, 8);
+    localStorage.setItem('mybot_session_id', id);
+  }
+  return id;
+})();
+const WS_URL = `ws://${location.host}/ws/chat?session=${SESSION_ID}`;
 
 // --- WebSocket ---
 function connect() {
@@ -460,12 +469,18 @@ function toggleTheme() {
 
 // --- Clear ---
 function clearChat() {
+  // Generate new session ID for a fresh conversation
+  const newId = 'ws:' + crypto.randomUUID().slice(0, 8);
+  localStorage.setItem('mybot_session_id', newId);
+  // Reconnect with new session
+  if (ws) ws.close();
   chatContainer.innerHTML = '';
   const empty = document.createElement('div');
   empty.className = 'empty-state';
   empty.id = 'emptyState';
   empty.innerHTML = '<div class="logo">🤖</div><p>开始对话吧</p>';
   chatContainer.appendChild(empty);
+  connect();
 }
 
 // --- Init ---

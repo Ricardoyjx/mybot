@@ -65,7 +65,8 @@ class WebServer:
 
     async def _handle_ws(self, ws: WebSocket) -> None:
         await ws.accept()
-        session_id = f"ws:{uuid.uuid4().hex[:8]}"
+        # Use session ID from frontend query param, or generate a new one
+        session_id = ws.query_params.get("session") or f"ws:{uuid.uuid4().hex[:8]}"
         logger.info("WS connected: {}", session_id)
 
         try:
