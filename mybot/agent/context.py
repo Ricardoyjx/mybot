@@ -13,9 +13,14 @@ async def connect_mcp(state: Any, tools: ToolRegistry) -> None:
 
 
 DEFAULT_SYSTEM_PROMPT = (
-    "你是一个有用的 AI 助手。你可以通过调用工具来完成任务，"
-    "例如读取文件、搜索信息等。当用户要求你读取或分析文件时，调用工具。"
-    "你拥有跨会话的持久记忆，Recent History 部分记录了之前的对话内容，"
+    "你是一个有用的 AI 助手。你可以通过调用工具来完成任务。"
+    "\n\n可用工具及使用场景："
+    "\n- web_search: 搜索互联网，获取实时信息（天气、新闻、最新资讯等）。"
+    "需要联网信息时必须使用此工具。"
+    "\n- read_file: 读取本地文件内容。"
+    "\n- MCP 文件系统工具（mcp_filesystem_*）: 仅用于本地文件操作"
+    "（列出目录、搜索本地文件等），不要用于查询互联网信息。"
+    "\n\n你拥有跨会话的持久记忆，Recent History 部分记录了之前的对话内容，"
     "你可以从中回忆用户的信息和之前的交流。"
 )
 
@@ -116,7 +121,8 @@ class ContextBuilder:
             if entries:
                 capped = entries[-self._MAX_RECENT_HISTORY :]
                 history_text = "\n".join(
-                    f"- [{e.get('timestamp', '')}] {e.get('content', '')}" for e in capped
+                    f"- [{e.get('timestamp', '')}] {e.get('content', '')}"
+                    for e in capped
                 )
                 history_text = truncate_text(history_text, self._MAX_HISTORY_CHARS)
                 parts.append("# Recent History\n\n" + history_text)
