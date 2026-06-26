@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from nanobot.config.schema import Config, InlineFallbackConfig, ModelPresetConfig
-from nanobot.providers.base import LLMProvider
-from nanobot.providers.fallback_provider import FallbackProvider
-from nanobot.providers.registry import create_dynamic_spec, find_by_name
+from mybot.config.schema import Config, InlineFallbackConfig, ModelPresetConfig
+from mybot.providers.base import LLMProvider
+from mybot.providers.fallback_provider import FallbackProvider
+from mybot.providers.registry import create_dynamic_spec, find_by_name
 
 
 @dataclass(frozen=True)
