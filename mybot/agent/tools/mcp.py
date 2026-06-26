@@ -135,22 +135,28 @@ class MCPToolWrapper(_MCPWrapperBase):
                 self._session.call_tool(self._original_name, arguments=kwargs),
                 timeout=self._tool_timeout,
             )
+        except (asyncio.TimeoutError, asyncio.CancelledError) as e:
+            logger.warning(
+                "MCP tool '{}' {}",
+                self._name,
+                "timed out" if isinstance(e, asyncio.TimeoutError) else "was cancelled",
+            )
+            return f"(MCP tool call failed: {type(e).__name__})"
         except Exception as e:
             logger.exception(
-                "MCP tool '{}' failed after retry: {}",
+                "MCP tool '{}' failed: {}",
                 self._name,
                 type(e).__name__,
             )
-            return f"(MCP tool call failed after retry: {type(e).__name__})"
+            return f"(MCP tool call failed: {type(e).__name__}: {e})"
 
-        else:
-            parts = []
-            for block in result.content:
-                if hasattr(block, "text"):
-                    parts.append(block.text)
-                else:
-                    parts.append(str(block))
-            return "\n".join(parts) or "(no output)"
+        parts = []
+        for block in result.content:
+            if hasattr(block, "text"):
+                parts.append(block.text)
+            else:
+                parts.append(str(block))
+        return "\n".join(parts) or "(no output)"
 
 
 class MCPResourceWrapper(_MCPWrapperBase):
@@ -382,19 +388,26 @@ async def connect_mcp_servers(
             for tool_def in tools.tools:
                 wrapped_name = f"mcp_{name}_{tool_def.name}"
 
+                # enabled_tools filtering: skip tools not in the allowlist
+                if enabled_tools and "*" not in enabled_tools:
+                    if (
+                        tool_def.name not in enabled_tools
+                        and wrapped_name not in enabled_tools
+                    ):
+                        logger.debug(
+                            "MCP: skipping tool '{}' (not in enabled_tools)",
+                            wrapped_name,
+                        )
+                        continue
+
                 wrapper = MCPToolWrapper(
                     session, name, tool_def, tool_timeout=cfg.tool_timeout
                 )
-                registry.register(wrapper)  # todo impl register
+                registry.register(wrapper)
                 logger.debug(
                     "MCP: registered tool '{}' from server '{}'", wrapper.name, name
                 )
                 registered_count += 1
-                if enabled_tools:
-                    if tool_def.name in enabled_tools:
-                        matched_enabled_tools.add(tool_def.name)
-                    if wrapped_name in enabled_tools:
-                        matched_enabled_tools.add(wrapped_name)
 
             # get resources
             try:
