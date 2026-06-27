@@ -13,6 +13,7 @@ import asyncio
 import os
 import sys
 from pathlib import Path
+from tracemalloc import start
 
 from loguru import logger
 
@@ -156,6 +157,66 @@ async def web_loop(agent: AgentLoop, host: str = "0.0.0.0", port: int = 8080) ->
         await agent.shutdown()
 
 
+async def wechat_loop(agent: AgentLoop) -> None:
+    """WeChat 模式：通过 WeChatFerry 接收微信消息。"""
+    from mybot.channels.wechat import WeChatChannel
+
+    channel = WeChatChannel()
+    agent._register_default_tools()
+    await agent._connect_mcp()
+
+    # 消息回调 发布到bus
+    async def on_message(msg):
+        await agent.bus.publish_inbound(msg)
+
+    # outbound
+    async def outbound_loop():
+        while True:
+            out = await agent.bus.consume_outbound()
+            if out.channel == "wechat":
+                await channel.send(out)
+
+    await channel.start(on_message)
+    asyncio.create_task(outbound_loop())
+    agent_task = asyncio.create_task(agent.run())
+
+    try:
+        await asyncio.Event().wait()
+    finally:
+        agent_task.cancel()
+        await channel.stop()
+        await agent.shutdown()
+
+
+async def mock_loop(agent: AgentLoop) -> None:
+    """Mock 模式：从 stdin 读消息，验证 Channel 架构。"""
+    from mybot.channels.mock import MockChannel
+
+    channel = MockChannel()
+    agent._register_default_tools()
+    await agent._connect_mcp()
+
+    async def on_message(msg):
+        await agent.bus.publish_inbound(msg)
+
+    async def outbound_loop():
+        while True:
+            out = await agent.bus.consume_outbound()
+            if out.channel == "mock":
+                await channel.send(out)
+
+    await channel.start(on_message)
+    asyncio.create_task(outbound_loop())
+    agent_task = asyncio.create_task(agent.run())
+
+    try:
+        await asyncio.Event().wait()
+    finally:
+        agent_task.cancel()
+        await channel.stop()
+        await agent.shutdown()
+
+
 def main() -> None:
     logger.remove()
     logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {level} | {message}")
@@ -170,6 +231,10 @@ def main() -> None:
                 if arg == "--port" and i + 1 < len(args):
                     port = int(args[i + 1])
             asyncio.run(web_loop(agent, port=port))
+        elif "--wechat" in args:
+            asyncio.run(wechat_loop(agent))
+        elif "--mock" in args:
+            asyncio.run(mock_loop(agent))
         else:
             asyncio.run(cli_loop(agent))
     except KeyboardInterrupt:
