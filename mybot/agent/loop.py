@@ -333,9 +333,71 @@ class AgentLoop:
         self._running = False
         logger.info("Agent loop stopping")
 
+    async def _maybe_dream(self, workspace: Path, threshold: int = 20) -> None:
+        """检查是否需要整合历史到长期记忆（Dream 机制）。"""
+        from mybot.agent.memory import MemoryStore
+
+        memory = MemoryStore(workspace=workspace)
+        if not memory.needs_dream(threshold):
+            return
+
+        entries = memory.get_undreamed_entries()
+        if not entries:
+            return
+
+        logger.info("Dream: 开始整合 {} 条历史记录", len(entries))
+
+        # 构建历史摘要请求
+        history_text = "\n".join(
+            f"[{e.get('timestamp', '')}] {e.get('content', '')}"
+            for e in entries[-100:]  # 最多取最近 100 条
+        )
+
+        prompt = (
+            "请将以下对话历史整理为简洁的用户画像和关键信息，"
+            "用于长期记忆。只保留重要的事实、偏好、习惯，"
+            "去掉寒暄和不重要的细节。用 bullet points 格式输出。\n\n"
+            f"对话历史：\n{history_text}"
+        )
+
+        try:
+            from mybot.providers.base import LLMResponse
+
+            messages = [{"role": "user", "content": prompt}]
+            response = await self.provider.chat_with_retry(
+                messages=messages, tools=None
+            )
+            summary = response.content
+
+            if summary:
+                # 追加到 MEMORY.md
+                existing = memory.read_memory()
+                timestamp = (
+                    __import__("datetime").datetime.now().strftime("%Y-%m-%d %H:%M")
+                )
+                new_entry = f"\n\n### Dream {timestamp}\n\n{summary}"
+
+                if existing:
+                    memory.write_memory(existing + new_entry)
+                else:
+                    memory.write_memory(f"# Long-term Memory\n\n{new_entry}")
+
+                # 更新 cursor
+                latest_cursor = memory.get_latest_cursor()
+                memory.set_last_dream_cursor(latest_cursor)
+
+                # 压缩历史
+                memory.compact_history()
+
+                logger.info("Dream: 整合完成，cursor 更新到 {}", latest_cursor)
+            else:
+                logger.warning("Dream: LLM 返回空摘要")
+
+        except Exception as e:
+            logger.error("Dream: 整合失败: {}", e)
+
     async def shutdown(self) -> None:
         """Clean up MCP connections and other resources."""
-        import contextlib
         for name, stack in list(self._mcp_stacks.items()):
             try:
                 await stack.aclose()
@@ -393,12 +455,18 @@ class AgentLoop:
         context_builder = ContextBuilder(workspace=workspace)
 
         # 匹配 skills
-        logger.debug("Skills: workspace={}, skills_dir_exists={}",
-                     workspace, (workspace / "skills").is_dir())
+        logger.debug(
+            "Skills: workspace={}, skills_dir_exists={}",
+            workspace,
+            (workspace / "skills").is_dir(),
+        )
         matched_skills = context_builder.skills.match_skills(msg.content)
         skill_names = [s.name for s in matched_skills] if matched_skills else None
-        logger.debug("Skills: loaded={}, matched={}",
-                     list(context_builder.skills.skills.keys()), skill_names)
+        logger.debug(
+            "Skills: loaded={}, matched={}",
+            list(context_builder.skills.skills.keys()),
+            skill_names,
+        )
         if skill_names:
             logger.info("Skills matched: {}", skill_names)
 
@@ -434,6 +502,10 @@ class AgentLoop:
             f"User: {msg.content}\nAssistant: {result}",
             session_key=session_key,
         )
+
+        # 异步触发 Dream 整合（不阻塞回复）
+        workspace = self.session.workspace if self.session else Path.cwd()
+        asyncio.create_task(self._maybe_dream(workspace, threshold=5))
 
         return OutboundMessage(
             channel=msg.channel,
