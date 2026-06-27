@@ -352,6 +352,7 @@ class AgentLoop:
         chat_id: str = "direct",
         on_stream: Callable | None = None,
         on_stream_end: Callable | None = None,
+        on_status: Callable | None = None,
     ) -> OutboundMessage | None:
         """Process a message directly and return the outbound payload."""
         if not self.tool_registry._tools:
@@ -369,6 +370,7 @@ class AgentLoop:
             session_key=session_key,
             on_stream=on_stream,
             on_stream_end=on_stream_end,
+            on_status=on_status,
         )
 
     async def _process_message(
@@ -378,8 +380,8 @@ class AgentLoop:
         session_key: str = "default",
         on_stream: Callable | None = None,
         on_stream_end: Callable | None = None,
+        on_status: Callable | None = None,
         pending_queue: asyncio.Queue | None = None,
-        # tools: Any | None = None,
     ) -> OutboundMessage | None:
         session = self._ensure_session(session_key)
         session.add_user_message(msg.content)
@@ -402,6 +404,7 @@ class AgentLoop:
             history=history,
             on_stream=on_stream,
             on_stream_end=on_stream_end,
+            on_status=on_status,
         )
 
         if not result:

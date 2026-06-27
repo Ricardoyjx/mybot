@@ -38,6 +38,7 @@ class AgentRunner:
         history: list[dict[str, str]] | None = None,
         on_stream: Callable[[str], Awaitable[None]] | None = None,
         on_stream_end: Callable[[], Awaitable[None]] | None = None,
+        on_status: Callable[[str], Awaitable[None]] | None = None,
     ) -> str:
         """完整的 ReAct 循环，支持流式输出。"""
 
@@ -55,6 +56,13 @@ class AgentRunner:
         final_response = ""
         tool_calls_history = []
 
+        async def _status(text: str) -> None:
+            if on_status:
+                try:
+                    await on_status(text)
+                except Exception:
+                    pass
+
         for iteration in range(self.max_iteration):
 
             context = AgentHookContext(
@@ -67,6 +75,7 @@ class AgentRunner:
             await hook._before_iteration(context)
 
             # 每轮都传流式回调，provider 内部决定是否 stream
+            await _status("thinking")
             response = await self.provider.chat_with_retry(
                 messages=messages,
                 tools=tools if tools else None,
@@ -106,6 +115,7 @@ class AgentRunner:
 
             # 逐个执行工具
             for tool_call in response.tool_calls:
+                await _status(f"calling:{tool_call.function.name}")
                 result = await self._execute_tool(tool_call)
 
                 if len(result) > _TOOL_RESULT_MAX_CHARS:
