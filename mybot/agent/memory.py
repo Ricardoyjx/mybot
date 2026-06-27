@@ -83,6 +83,26 @@ class MemoryStore:
         cursor_file = self.memory_dir / ".dream_cursor"
         cursor_file.write_text(str(cursor), encoding="utf-8")
 
+    def needs_dream(self, threshold: int = 20) -> bool:
+        """检查是否有足够的新历史需要整合。"""
+        last_cursor = self.get_last_dream_cursor()
+        entries = self._read_entries()
+        new_count = sum(1 for e in entries if e.get("cursor", 0) > last_cursor)
+        return new_count >= threshold
+
+    def get_undreamed_entries(self) -> list[dict[str, Any]]:
+        """获取所有未整合的历史条目。"""
+        last_cursor = self.get_last_dream_cursor()
+        entries = self._read_entries()
+        return [e for e in entries if e.get("cursor", 0) > last_cursor]
+
+    def get_latest_cursor(self) -> int:
+        """获取最新的 cursor 值。"""
+        entries = self._read_entries()
+        if not entries:
+            return 0
+        return max(e.get("cursor", 0) for e in entries)
+
     # -- history.jsonl — append-only, JSONL format ---------------------------
 
     def append_history(
