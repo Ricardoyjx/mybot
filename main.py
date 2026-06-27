@@ -210,6 +210,35 @@ async def mock_loop(agent: AgentLoop) -> None:
         await channel.stop()
 
 
+async def telegram_loop(agent: AgentLoop) -> None:
+    """Telegram 模式：通过 Telegram Bot 接收消息。"""
+    from mybot.channels.telegram import TelegramChannel
+
+    channel = TelegramChannel()
+    agent._register_default_tools()
+    await agent._connect_mcp()
+
+    async def on_message(msg):
+        await agent.bus.publish_inbound(msg)
+
+    async def outbound_loop():
+        while True:
+            out = await agent.bus.consume_outbound()
+            if out.channel == "telegram":
+                await channel.send(out)
+
+    await channel.start(on_message)
+    asyncio.create_task(outbound_loop())
+    agent_task = asyncio.create_task(agent.run())
+
+    try:
+        await asyncio.Event().wait()
+    finally:
+        agent_task.cancel()
+        await channel.stop()
+        await agent.shutdown()
+
+
 def main() -> None:
     logger.remove()
     logger.add(sys.stderr, level="INFO", format="{time:HH:mm:ss} | {level} | {message}")
@@ -226,6 +255,8 @@ def main() -> None:
             asyncio.run(web_loop(agent, port=port))
         elif "--wechat" in args:
             asyncio.run(wechat_loop(agent))
+        elif "--telegram" in args:
+            asyncio.run(telegram_loop(agent))
         elif "--mock" in args:
             asyncio.run(mock_loop(agent))
         else:
