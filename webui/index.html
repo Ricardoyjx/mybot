@@ -252,6 +252,63 @@
     background: none;
     padding: 0;
   }
+
+  /* Status bar */
+  .status-bar {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 20px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-muted);
+    animation: slideDown 0.2s ease;
+  }
+  .status-bar.visible { display: flex; }
+  @keyframes slideDown {
+    from { opacity: 0; transform: translateY(-100%); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .status-bar .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  .status-bar .status-icon {
+    font-size: 14px;
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .status-bar .status-text {
+    flex: 1;
+  }
+  .status-bar .elapsed {
+    font-size: 12px;
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+
+  /* Tool badge in bot message */
+  .tool-badge {
+    display: inline-block;
+    background: var(--border);
+    color: var(--text-muted);
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    margin: 4px 0;
+    animation: fadeIn 0.2s ease;
+  }
 </style>
 </head>
 <body>
@@ -265,6 +322,13 @@
     <button onclick="toggleTheme()">🌓 主题</button>
     <button onclick="clearChat()">🗑 清空</button>
   </div>
+</div>
+
+<div class="status-bar" id="statusBar">
+  <div class="spinner"></div>
+  <span class="status-icon">🧠</span>
+  <span class="status-text" id="statusText">Thinking...</span>
+  <span class="elapsed" id="statusElapsed"></span>
 </div>
 
 <div class="chat-container" id="chatContainer">
@@ -302,6 +366,8 @@ let ws = null;
 let currentBotBubble = null;
 let currentBotText = '';
 let reconnectTimer = null;
+let statusTimer = null;
+let statusStartTime = 0;
 // Persist session ID across page refreshes
 const SESSION_ID = (() => {
   let id = localStorage.getItem('mybot_session_id');
@@ -328,13 +394,19 @@ function connect() {
     try {
       const msg = JSON.parse(evt.data);
       switch (msg.type) {
+        case 'status':
+          showStatus(msg.content);
+          break;
         case 'delta':
+          hideStatus();
           appendDelta(msg.content);
           break;
         case 'done':
+          hideStatus();
           finishBotMessage();
           break;
         case 'error':
+          hideStatus();
           appendDelta(`\n⚠️ ${msg.content}`);
           finishBotMessage();
           break;
@@ -417,6 +489,48 @@ function finishBotMessage() {
 
 function scrollToBottom() {
   chatContainer.scrollTop = chatContainer.scrollHeight;
+}
+
+// --- Status bar ---
+const STATUS_LABELS = {
+  'thinking': '🧠 Thinking...',
+  'done': '✅ Done',
+};
+const TOOL_LABELS = {};
+
+function showStatus(status) {
+  const bar = document.getElementById('statusBar');
+  const text = document.getElementById('statusText');
+  const elapsed = document.getElementById('statusElapsed');
+
+  if (status.startsWith('calling:')) {
+    const toolName = status.replace('calling:', '');
+    const icon = TOOL_LABELS[toolName] || '🔧';
+    const label = toolName.replace(/_/g, ' ').replace(/^mcp /, '');
+    text.textContent = `${icon} Calling ${label}...`;
+  } else {
+    text.textContent = STATUS_LABELS[status] || `⏳ ${status}...`;
+  }
+
+  if (!statusStartTime) {
+    statusStartTime = Date.now();
+    statusTimer = setInterval(() => {
+      const s = Math.floor((Date.now() - statusStartTime) / 1000);
+      elapsed.textContent = `${s}s`;
+    }, 1000);
+  }
+
+  bar.classList.add('visible');
+  const container = document.getElementById('chatContainer');
+  container.scrollTop = container.scrollHeight;
+}
+
+function hideStatus() {
+  const bar = document.getElementById('statusBar');
+  bar.classList.remove('visible');
+  if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
+  statusStartTime = 0;
+  document.getElementById('statusElapsed').textContent = '';
 }
 
 // --- Send ---
