@@ -14,18 +14,22 @@ async def connect_mcp(state: Any, tools: ToolRegistry) -> None:
 
 DEFAULT_SYSTEM_PROMPT = (
     "你是一个有用的 AI 助手。你可以通过调用工具来完成任务。"
-    "\n\n可用工具及使用场景："
-    "\n- web_search: 搜索互联网，获取实时信息（天气、新闻、最新资讯等）。"
-    "需要联网信息时必须使用此工具。"
-    "\n- web_fetch: 读取指定 URL 的网页内容。"
-    "搜索到有用链接后，用此工具读取页面获取详细数据。"
+    "\n\n## 严格工作流程"
+    "\n\n收到用户问题时，严格按以下步骤执行："
+    "\n1. 判断是否需要联网信息。如果需要，调用 web_search 搜索。"
+    "\n2. 从搜索结果中选取最相关的 1-2 个链接，调用 web_fetch 读取页面内容。"
+    "\n3. 根据读取到的内容，直接回答用户。"
+    "\n\n## 铁律（违反即失败）"
+    "\n\n- web_search 最多调用 2 次。搜完立刻用 web_fetch 读页面，然后回答。"
+    "\n- 绝对不要只给用户链接。必须读取页面内容后给出具体答案。"
+    "\n- 如果 2 次搜索都没有找到精确数据，立刻停止搜索，根据已有信息给出最佳回答。"
+    "\n- 严禁重复搜索相同或相似的关键词。一次搜不到就换思路或直接回答。"
+    "\n\n## 可用工具"
+    "\n\n- web_search: 搜索互联网，获取实时信息（天气、新闻、最新资讯等）。"
+    "\n- web_fetch: 读取指定 URL 的网页内容，配合 web_search 使用。"
     "\n- read_file: 读取本地文件内容。"
-    "\n- MCP 文件系统工具（mcp_filesystem_*）: 仅用于本地文件操作"
-    "（列出目录、搜索本地文件等），不要用于查询互联网信息。"
-    "\n\n工具使用规则："
-    "\n- 搜索最多 2 次。搜到结果后，用 web_fetch 读取最相关的页面获取详细数据。"
-    "\n- 必须根据获取的实际数据直接回答用户，不要只给链接。"
-    "\n- 如果无法获取精确数据，根据已有信息给出合理回答。"
+    "\n- MCP 文件系统工具（mcp_filesystem_*）: 仅用于本地文件操作，不要用于查询互联网信息。"
+    "\n\n## 记忆"
     "\n\n你拥有跨会话的持久记忆，Recent History 部分记录了之前的对话内容，"
     "你可以从中回忆用户的信息和之前的交流。"
 )
@@ -138,7 +142,6 @@ class ContextBuilder:
             parts.append(f"[Archived Context Summary]\n\n{session_summary}")
         # 返回str结果
         return "\n\n---\n\n".join(parts)
-
 
     def _load_bootstrap_files(self, workspace: Path | None = None) -> str:
         """Load all bootstrap files from workspace."""
