@@ -143,7 +143,7 @@ class SkillsLoader:
         """Scan skills/ directory and return all valid skills."""
         skills_dir = self.workspace / "skills"
         if not skills_dir.is_dir():
-            logger.debug("SkillsLoader: no skills/ directory at {}", skills_dir)
+            logger.info("SkillsLoader: no skills/ directory at {}", skills_dir)
             self._loaded = True
             return {}
 
@@ -188,7 +188,7 @@ class SkillsLoader:
 
     def get_always_skills(self) -> list[Skill]:
         """Return skills that should be injected into every prompt."""
-        return [s for s in self._skills.values() if s.always]
+        return [s for s in self._ensure_loaded().values() if s.always]
 
     def match_skills(self, user_message: str) -> list[Skill]:
         """Return skills whose triggers match the user message."""
@@ -196,7 +196,7 @@ class SkillsLoader:
             return []
         msg_lower = user_message.lower()
         matched: list[Skill] = []
-        for skill in self._skills.values():
+        for skill in self._ensure_loaded().values():
             if skill.always:
                 continue  # always skills are handled separately
             for trigger in skill.triggers:

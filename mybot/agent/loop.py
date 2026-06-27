@@ -391,8 +391,12 @@ class AgentLoop:
         context_builder = ContextBuilder(workspace=workspace)
 
         # 匹配 skills
+        logger.debug("Skills: workspace={}, skills_dir_exists={}",
+                     workspace, (workspace / "skills").is_dir())
         matched_skills = context_builder.skills.match_skills(msg.content)
         skill_names = [s.name for s in matched_skills] if matched_skills else None
+        logger.debug("Skills: loaded={}, matched={}",
+                     list(context_builder.skills.skills.keys()), skill_names)
         if skill_names:
             logger.info("Skills matched: {}", skill_names)
 
