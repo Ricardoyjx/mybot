@@ -1,7 +1,7 @@
 import asyncio
 from contextlib import AsyncExitStack, nullcontext
 from dataclasses import dataclass
-from datetime import time
+import time
 from loguru import logger
 from mybot.agent.cron_turns import CronTurnCoordinator
 from mybot.bus.queue import MessageBus
@@ -112,7 +112,7 @@ class AgentLoop:
             try:
                 msg = await asyncio.wait_for(self.bus.consume_inbound(), timeout=1.0)
             except asyncio.TimeoutError:
-                logger.warning("Time out error")
+                logger.debug("No inbound message, polling...")
                 continue
             except Exception as e:
                 logger.warning("Error consuming inbound message: {}, continuing...", e)
@@ -335,11 +335,13 @@ class AgentLoop:
 
     async def shutdown(self) -> None:
         """Clean up MCP connections and other resources."""
+        import contextlib
         for name, stack in list(self._mcp_stacks.items()):
             try:
                 await stack.aclose()
-            except Exception:
-                pass
+            except (RuntimeError, Exception) as e:
+                # Suppress MCP cancel scope errors during shutdown
+                logger.debug("MCP shutdown warning for {}: {}", name, e)
         self._mcp_stacks.clear()
         self._mcp_connected = False
         logger.info("Agent loop shut down")
