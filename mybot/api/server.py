@@ -115,6 +115,12 @@ class WebServer:
             except Exception:
                 pass
 
+        async def on_status(status: str) -> None:
+            try:
+                await ws.send_json({"type": "status", "content": status})
+            except Exception:
+                pass
+
         try:
             response = await self.agent.process_direct(
                 content=content,
@@ -123,6 +129,7 @@ class WebServer:
                 chat_id=session_id,
                 on_stream=on_stream,
                 on_stream_end=on_stream_end,
+                on_status=on_status,
             )
             # fallback: 流式没触发时发送完整响应
             if not stream_sent and response and response.content:
