@@ -134,10 +134,34 @@ class AgentRunner:
             # 生命周期钩子：迭代后
             await hook.after_iteration(iteration, messages)
 
-
-
         else:
-            final_response = ""
+            # 迭代用完了，强制 LLM 根据已有信息直接回答
+            logger.warning(
+                "AgentRunner: max iterations ({}) reached, forcing final answer",
+                self.max_iteration,
+            )
+            await _status("thinking")
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "你已经用完了所有工具调用次数。"
+                        "请立刻根据上面已有的信息直接回答用户的问题，"
+                        "不要再调用任何工具。"
+                    ),
+                }
+            )
+            try:
+                resp = await self.provider.chat_with_retry(
+                    messages=messages,
+                    tools=None,
+                    on_stream=on_stream,
+                    on_stream_end=on_stream_end,
+                )
+                final_response = resp.content or "抱歉，我无法在限定步骤内找到答案。"
+            except Exception as e:
+                logger.error("Forced final answer failed: {}", e)
+                final_response = "抱歉，我无法在限定步骤内找到答案。"
 
         return final_response
 
