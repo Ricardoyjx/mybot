@@ -51,7 +51,3 @@ class ToolsConfig(Base):
 
 class ChannelConfig(Base):
     pass
-
-
-class ModelPresetConfig:
-    pass

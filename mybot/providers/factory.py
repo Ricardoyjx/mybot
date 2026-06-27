@@ -67,11 +67,11 @@ def _make_provider_core(
             raise ValueError(f"No API key configured for provider '{provider_name}'.")
 
     if backend == "openai_codex":
-        from nanobot.providers.openai_codex_provider import OpenAICodexProvider
+        from mybot.providers.openai_codex_provider import OpenAICodexProvider
 
         provider = OpenAICodexProvider(default_model=model)
     elif backend == "azure_openai":
-        from nanobot.providers.azure_openai_provider import AzureOpenAIProvider
+        from mybot.providers.azure_openai_provider import AzureOpenAIProvider
 
         provider = AzureOpenAIProvider(
             api_key=p.api_key or "",
@@ -79,11 +79,11 @@ def _make_provider_core(
             default_model=model,
         )
     elif backend == "github_copilot":
-        from nanobot.providers.github_copilot_provider import GitHubCopilotProvider
+        from mybot.providers.github_copilot_provider import GitHubCopilotProvider
 
         provider = GitHubCopilotProvider(default_model=model)
     elif backend == "anthropic":
-        from nanobot.providers.anthropic_provider import AnthropicProvider
+        from mybot.providers.anthropic_provider import AnthropicProvider
 
         provider = AnthropicProvider(
             api_key=p.api_key if p else None,
@@ -92,7 +92,7 @@ def _make_provider_core(
             extra_headers=p.extra_headers if p else None,
         )
     elif backend == "bedrock":
-        from nanobot.providers.bedrock_provider import BedrockProvider
+        from mybot.providers.bedrock_provider import BedrockProvider
 
         provider = BedrockProvider(
             api_key=p.api_key if p else None,
@@ -103,7 +103,7 @@ def _make_provider_core(
             extra_body=p.extra_body if p else None,
         )
     else:
-        from nanobot.providers.openai_compat_provider import OpenAICompatProvider
+        from mybot.providers.openai_compat_provider import OpenAICompatProvider
 
         provider = OpenAICompatProvider(
             api_key=p.api_key if p else None,
@@ -263,7 +263,7 @@ def load_provider_snapshot(
     *,
     preset_name: str | None = None,
 ) -> ProviderSnapshot:
-    from nanobot.config.loader import load_config, resolve_config_env_vars
+    from mybot.config.loader import load_config, resolve_config_env_vars
 
     return build_provider_snapshot(
         resolve_config_env_vars(load_config(config_path)),
