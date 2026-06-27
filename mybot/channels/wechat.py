@@ -45,7 +45,7 @@ class WeChatChannel(Channel):
 
                 # 只处理文本消息（type=1）
                 if msg.type != 1:
-                    logger.debug()
+                    logger.debug("WeChatChannel: ignoring msg type={}", msg.type)
                     continue
 
                 # 群聊消息需要 @机器人 才回复
@@ -66,7 +66,7 @@ class WeChatChannel(Channel):
                     chat_id=chat_id,
                     content=content,
                     channel="wechat",
-                    metadata={"is_group": is_group, "msg_id": msg.id},
+                    metadata={"is_group": is_group, "msg_id": msg.id, "_wants_stream": False},
                 )
 
                 if self._on_message:
