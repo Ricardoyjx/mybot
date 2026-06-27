@@ -13,7 +13,6 @@ import asyncio
 import os
 import sys
 from pathlib import Path
-from tracemalloc import start
 
 from loguru import logger
 
@@ -178,14 +177,11 @@ async def wechat_loop(agent: AgentLoop) -> None:
 
     await channel.start(on_message)
     asyncio.create_task(outbound_loop())
-    agent_task = asyncio.create_task(agent.run())
 
     try:
         await asyncio.Event().wait()
     finally:
-        agent_task.cancel()
         await channel.stop()
-        await agent.shutdown()
 
 
 async def mock_loop(agent: AgentLoop) -> None:
@@ -207,14 +203,11 @@ async def mock_loop(agent: AgentLoop) -> None:
 
     await channel.start(on_message)
     asyncio.create_task(outbound_loop())
-    agent_task = asyncio.create_task(agent.run())
 
     try:
         await asyncio.Event().wait()
     finally:
-        agent_task.cancel()
         await channel.stop()
-        await agent.shutdown()
 
 
 def main() -> None:
