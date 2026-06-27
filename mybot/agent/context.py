@@ -2,7 +2,7 @@ from mybot.agent.memory import MemoryStore
 from mybot.agent.tools import mcp as mcp_tools
 from mybot.agent.tools.registry import ToolRegistry
 
-# from mybot.agent.skills import SkillsLoader
+from mybot.agent.skills import SkillsLoader
 from typing import Any, Mapping, Sequence
 from pathlib import Path
 from mybot.utils.helpers import current_time_str, truncate_text
@@ -59,9 +59,9 @@ class ContextBuilder:
         self.workspace = workspace
         self.timezone = timezone
         self.memory = MemoryStore(workspace)
-        # self.skills = SkillsLoader(
-        #     workspace, disabled_skills=set(disabled_skills) if disabled_skills else None
-        # )
+        self.skills = SkillsLoader(
+            workspace, disabled_skills=set(disabled_skills) if disabled_skills else None
+        )
 
     def _build_user_content(
         self, text: str, media: list[str] | None
@@ -110,23 +110,26 @@ class ContextBuilder:
         memory = self.memory.get_memory_context()
         if memory:
             parts.append(f"# Memory\n\n{memory}")
-        # 读取skills
+        # 读取 always skills
+        always_skills = self.skills.get_always_skills()
+        if always_skills:
+            always_content = self.skills.load_skills_for_content(always_skills)
+            if always_content:
+                parts.append(f"# Active Skills\n\n{always_content}")
 
-        # always_skills = self.skills.get_always_skills()
-        # if always_skills:
-        #     always_content = self.skills.load_skills_for_content(always_skills)
-        #     if always_content:
-        #         parts.append(f"# Active Skills\n\n{always_content}")
+        # 读取 triggered skills
+        if skill_names:
+            triggered = [self.skills.skills[n] for n in skill_names if n in self.skills.skills]
+            if triggered:
+                triggered_content = self.skills.load_skills_for_content(triggered)
+                if triggered_content:
+                    parts.append(f"# Triggered Skills\n\n{triggered_content}")
 
-        # 读取 skills summary
-
-        # skills_summary = self.skills.build_skills_summary(exclude=set(always_skills))
-        # if skills_summary:
-        #     parts.append(
-        #         render_template(
-        #             "agent/skills_section.md", skills_summary=skills_summary
-        #         )
-        #     )
+        # skills summary
+        exclude_names = {s.name for s in always_skills}
+        skills_summary = self.skills.build_skills_summary(exclude=exclude_names)
+        if skills_summary:
+            parts.append(f"# Available Skills\n\n{skills_summary}")
 
         # 读取最近历史memory
         if include_memory_recent_history:

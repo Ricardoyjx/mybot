@@ -387,21 +387,27 @@ class AgentLoop:
         session.add_user_message(msg.content)
         history = list(session.messages)
 
+        workspace = self.session.workspace if self.session else Path.cwd()
+        context_builder = ContextBuilder(workspace=workspace)
+
+        # 匹配 skills
+        matched_skills = context_builder.skills.match_skills(msg.content)
+        skill_names = [s.name for s in matched_skills] if matched_skills else None
+        if skill_names:
+            logger.info("Skills matched: {}", skill_names)
+
         runner = AgentRunner(
             provider=self.provider,
             tool_registry=self.tool_registry,
-            context_builder=ContextBuilder(
-                workspace=self.session.workspace if self.session else Path.cwd()
-            ),
-            memory_store=MemoryStore(
-                workspace=self.session.workspace if self.session else Path.cwd()
-            ),
+            context_builder=context_builder,
+            memory_store=MemoryStore(workspace=workspace),
         )
         result = await runner.run(
             user_message=msg.content,
             session_id=session.key,
             hook=AgentHook(),
             history=history,
+            skill_names=skill_names,
             on_stream=on_stream,
             on_stream_end=on_stream_end,
             on_status=on_status,

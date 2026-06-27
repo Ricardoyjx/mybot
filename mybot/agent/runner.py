@@ -36,6 +36,7 @@ class AgentRunner:
         session_id: str,
         hook: AgentHook,
         history: list[dict[str, str]] | None = None,
+        skill_names: list[str] | None = None,
         on_stream: Callable[[str], Awaitable[None]] | None = None,
         on_stream_end: Callable[[], Awaitable[None]] | None = None,
         on_status: Callable[[str], Awaitable[None]] | None = None,
@@ -47,6 +48,7 @@ class AgentRunner:
             current_message=user_message,
             session_key=session_id,
             history=history,
+            skill_names=skill_names,
         )
 
         # 获取可用工具 schema
