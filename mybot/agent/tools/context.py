@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Protocol, runtime_checkable
 
 
 @dataclass
@@ -32,3 +33,13 @@ class ToolContext:
     config: _ToolsConfig = field(default_factory=_ToolsConfig)
     workspace: str = "."
     restrict_to_workspace: bool = False
+
+
+@dataclass(frozen=True)
+class RequestContext:
+    pass
+
+
+@runtime_checkable
+class ContextAware(Protocol):
+    pass
