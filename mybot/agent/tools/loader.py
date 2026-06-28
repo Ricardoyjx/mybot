@@ -87,7 +87,7 @@ class ToolLoader:
                     registered.append(tool.name)
                     if not is_plugin_source:
                         builtin_names.add(tool.name)
-                    logger.info(
+                    logger.debug(
                         "ToolLoader: registered [{}] {} -> {}",
                         source_label,
                         cls_label,

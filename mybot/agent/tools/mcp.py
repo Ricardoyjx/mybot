@@ -315,7 +315,7 @@ async def connect_missing_servers(state: Any, registry: ToolRegistry) -> None:
         state._mcp_stacks.update(connected)
 
         if connected:
-            logger.info("MCP connected servers: {}", sorted(connected))
+            logger.debug("MCP connected servers: {}", sorted(connected))
         else:
             logger.warning(
                 "No MCP servers connected successfully (will retry next message)"
@@ -367,7 +367,7 @@ async def connect_mcp_servers(
                     cwd=cfg.cwd or None,
                 )
                 read, write = await server_stack.enter_async_context(
-                    stdio_client(params)
+                    stdio_client(params, errlog=open(os.devnull, "w"))
                 )
             else:
                 logger.warning(
@@ -447,7 +447,7 @@ async def connect_mcp_servers(
                     "MCP server '{}': prompts not supported or failed: {}", name, e
                 )
 
-            logger.info(
+            logger.debug(
                 "MCP server '{}': connected, {} capabilities registered",
                 name,
                 registered_count,
