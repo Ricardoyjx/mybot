@@ -26,12 +26,23 @@ SESSION_KEY = "cli:default"
 
 def create_provider():
     """根据环境变量自动选择 provider。"""
-    if os.getenv("DEEPSEEK_API_KEY"):
+    if os.getenv("BAILIAN_API_KEY"):
+        from mybot.providers.bailian_provider import BailianProvider
+
+        return BailianProvider(
+            api_key=os.getenv("BAILIAN_API_KEY"),
+            base_url=os.getenv(
+                "BAILIAN_BASE_URL",
+                "https://ws-1agzecahhmlzxv9e.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+            ),
+            model=os.getenv("BAILIAN_MODEL", "qwen3.7-plus"),
+        )
+    elif os.getenv("DEEPSEEK_API_KEY"):
         from mybot.providers.deepseek_provider import DeepseekProvider
 
         return DeepseekProvider(
             base_url=os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"),
-            model=os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+            model=os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash"),
         )
     elif os.getenv("MIMO_API_KEY"):
         from mybot.providers.mimo_provider import MimoProvider
@@ -51,10 +62,12 @@ def create_provider():
 
 def create_agent() -> AgentLoop:
     """创建并返回 AgentLoop 实例。"""
+
+    prov = create_provider()
     return AgentLoop(
         bus=MessageBus(),
-        provider=create_provider(),
-        model=None,
+        provider=prov,
+        model=prov.model,
         session_manager=SessionManager(workspace=Path.home() / "Projects" / "my-bot"),
         mcp_servers={
             "filesystem": MCPServerConfig(
@@ -254,6 +267,7 @@ def main() -> None:
 
     args = sys.argv[1:]
     agent = create_agent()
+    logger.info(f"启动 {agent.model} 模型，{agent.provider.__class__.__name__} 提供商")
 
     try:
         if "--web" in args:
