@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from mybot.providers.base import LLMProvider
@@ -9,6 +11,72 @@ from loguru import logger
 
 _TOOL_RESULT_MAX_CHARS = 16000
 
+_DEFAULT_ERROR_MESSAGE = "Sorry, I encountered an error calling the AI model."
+_ARREARAGE_ERROR_MESSAGE = (
+    "The AI provider rejected the request because the API key is out of quota or the "
+    "account is in arrears. Please top up / check the billing status of your API key and try again."
+)
+_PERSISTED_MODEL_ERROR_PLACEHOLDER = "[Assistant reply unavailable due to model error.]"
+_MAX_EMPTY_RETRIES = 2
+_MAX_LENGTH_RECOVERIES = 3
+_MAX_INJECTIONS_PER_TURN = 3
+_MAX_INJECTION_CYCLES = 5
+_SNIP_SAFETY_BUFFER = 1024
+_MICROCOMPACT_KEEP_RECENT = 10
+_MICROCOMPACT_MIN_CHARS = 500
+_COMPACTABLE_TOOLS = frozenset(
+    {
+        "read_file",
+        "exec",
+        "grep",
+        "find_files",
+        "web_search",
+        "web_fetch",
+        "list_dir",
+        "list_exec_sessions",
+    }
+)
+# read_file is the recovery path for persisted results; exempting it prevents persist->read->persist loops.
+_TOOL_RESULT_OFFLOAD_EXEMPT_TOOLS = frozenset({"read_file"})
+_BACKFILL_CONTENT = "[Tool result unavailable — call was interrupted or lost]"
+
+# Backward-compatible module attribute for tests/extensions that monkeypatch
+# the former single-file tracker hook. Runtime uses prepare_file_edit_trackers.
+# prepare_file_edit_tracker = _prepare_file_edit_tracker
+
+
+@dataclass(slots=True)
+class AgentRunSpec:
+    """Configuration for a single agent execution."""
+
+    initial_messages: list[dict[str, Any]]
+    tools: ToolRegistry
+    model: str
+    max_iterations: int
+    max_tool_result_chars: int
+    temperature: float | None = None
+    max_tokens: int | None = None
+    reasoning_effort: str | None = None
+    hook: AgentHook | None = None
+    error_message: str | None = _DEFAULT_ERROR_MESSAGE
+    max_iterations_message: str | None = None
+    concurrent_tools: bool = False
+    fail_on_tool_error: bool = False
+    workspace: Path | None = None
+    session_key: str | None = None
+    context_window_tokens: int | None = None
+    context_block_limit: int | None = None
+    provider_retry_mode: str = "standard"
+    progress_callback: Any | None = None
+    stream_progress_deltas: bool = True
+    retry_wait_callback: Any | None = None
+    checkpoint_callback: Any | None = None
+    injection_callback: Any | None = None
+    llm_timeout_s: float | None = None
+    goal_active_predicate: Callable[[], bool] | None = None
+    goal_continue_message: str | None = None
+    finalize_on_max_iterations: bool = True
+
 
 class AgentRunner:
     def __init__(
@@ -17,7 +85,7 @@ class AgentRunner:
         tool_registry: ToolRegistry,
         context_builder: ContextBuilder,
         memory_store: MemoryStore,
-        max_iteration: int = 10,
+        max_iteration: int = 5,
         is_subagent: bool = False,
     ):
         self.provider = provider
@@ -70,7 +138,7 @@ class AgentRunner:
             context = AgentHookContext(
                 iteration=iteration,
                 messages=messages,
-                session_id=session_id,
+                session_key=session_id,
             )
 
             # 生命周期钩子：迭代前
